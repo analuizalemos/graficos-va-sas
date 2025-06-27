@@ -1,23 +1,20 @@
 <!DOCTYPE html>
 <!--
 Adaptado para SAS Visual Analytics.
-Estrutura baseada no exemplo D3 Radar Chart fornecido pela SAS.
-Lógica do card KPI e design fornecidos pelo usuário.
-VERSÃO ADAPTADA: Trabalha com múltiplas linhas ao invés de arrays
-MODIFICAÇÃO: Linha de tendência posicionada ao lado do valor principal
+Lógica de cálculo de proporção baseada na contagem distinta de um ID.
+Mantém as métricas de variação do card, mas aplicadas sobre os percentuais calculados.
+MODIFICAÇÃO: Gráfico de linha mostra a contagem distinta, com formatação para o padrão brasileiro.
 -->
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>KPI Card para SAS VA</title>
+    <title>KPI Card com Contagem Distinta para SAS VA</title>
     <!-- Import D3.js -->
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
-    <!-- Importar utilitários do SAS VA (apenas se disponível) -->
+    <!-- Importar utilitários do SAS VA -->
     <script type="text/javascript">
-        // Verifica se os utilitários do SAS VA estão disponíveis antes de importar
         if (typeof window !== 'undefined' && window.self !== window.top) {
-            // Está em iframe, pode tentar carregar os utilitários do SAS
             try {
                 document.write('<script type="text/javascript" src="../../util/messagingUtil.js"><\/script>');
                 document.write('<script type="text/javascript" src="../../util/contentUtil.js"><\/script>');
@@ -29,276 +26,296 @@ MODIFICAÇÃO: Linha de tendência posicionada ao lado do valor principal
 </head>
 <body>
 <style type="text/css">
-    /* Estilos globais para garantir que o SVG preencha o espaço */
     html, body, svg {
         margin: 0;
         padding: 0;
         width: 100%;
         height: 100%;
-        overflow: hidden; /* Evita barras de rolagem indesejadas */
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #f5f5f5; /* Cor de fundo para modo de depuração */
+        overflow: hidden;
+        font-family: 'Avenir Next', 'Avenir', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background-color: #f5f5f5;
     }
 
-    /* Estilos para os textos dentro do card */
     .title-text {
-        fill: #ffffff;
-        font-weight: 400;
+        fill: #1a4f0e;
+        font-weight: 700;
         text-anchor: middle;
+        text-shadow: 0px 1px 2px rgba(0,0,0,0.1);
     }
 
     .main-label-text {
-        fill: rgba(255,255,255,0.9);
-        font-weight: 400;
+        fill: #2d5016;
+        font-weight: 600;
     }
 
     .main-value-text {
-        fill: #ffffff;
-        font-weight: 300;
+        fill: #1a4f0e;
+        font-weight: 700;
+        text-shadow: 0px 2px 4px rgba(0,0,0,0.15);
     }
 
     .secondary-label-text {
-        fill: rgba(255,255,255,0.9);
-        font-weight: 400;
+        fill: #2d5016;
+        font-weight: 600;
+        text-anchor: middle;
     }
 
     .secondary-value-text {
-        fill: #ffffff;
-        font-weight: 400;
-        text-anchor: end;
+        fill: #1a4f0e;
+        font-weight: 700;
+        text-anchor: middle;
+        text-shadow: 0px 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .tooltip {
+        position: absolute;
+        background-color: rgba(26, 79, 14, 0.95);
+        color: white;
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        pointer-events: none;
+        z-index: 1000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        border: 1px solid rgba(255,255,255,0.2);
+        display: none;
+        line-height: 1.4;
+    }
+
+    .tooltip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border: 5px solid transparent;
+        border-top-color: rgba(26, 79, 14, 0.95);
     }
 </style>
 
 <div id="chart-container"></div>
+<!-- Tooltip element -->
+<div id="tooltip" class="tooltip"></div>
 
 <script>
 "use strict";
 
-// Função para aguardar o carregamento do D3
 function waitForD3(callback) {
     if (typeof d3 !== 'undefined') {
         callback();
     } else {
-        setTimeout(function() { 
-            waitForD3(callback); 
-        }, 100);
+        setTimeout(function() { waitForD3(callback); }, 100);
     }
 }
 
-// Aguarda tanto o DOM quanto o D3 estarem prontos
 document.addEventListener("DOMContentLoaded", function() {
-    waitForD3(function() {
-        initializeKPICard();
-    });
+    waitForD3(initializeKPICard);
 });
 
 function initializeKPICard() {
     /*******************************************************
-     * DECLARAÇÃO DE VARIÁVEIS               *
+     * DECLARAÇÃO DE VARIÁVEIS
      *******************************************************/
-
-    // Constantes e configurações
-    const SVG_CONTAINER_ID = "chart-container"; // ID do container do gráfico
-    let VA_RESULT_NAME; // Nome do resultado para comunicação com o VA
-
-    // Dados dinâmicos
-    let vaMessage; // Mensagem de dados recebida do VA
-    let processedData; // Dados processados e prontos para uso
-    let lastRenderTime = 0; // Para debouncing de atualizações
-    const renderDelay = 250; // Atraso para evitar renderizações excessivas
-
-    // Elementos D3
+    const SVG_CONTAINER_ID = "chart-container";
+    let VA_RESULT_NAME;
+    let vaMessage;
+    let processedData;
+    let lastRenderTime = 0;
+    const renderDelay = 250;
     let svg, mainGroup;
+    const tooltip = d3.select("#tooltip");
+    const POSITIVE_ANSWER = "Sim";
 
     /*******************************************************
-     * CONFIGURAÇÃO PARA DEBUG FORA DO SAS VA      *
+     * FUNÇÕES DE FORMATAÇÃO
      *******************************************************/
-    // Mensagem de dados de exemplo para renderizar o gráfico fora do VA para depuração
-    // Simula múltiplas linhas como virão do SAS VA
+    
+    d3.formatDefaultLocale({
+      "decimal": ",", "thousands": ".", "grouping": [3], "currency": ["R$", " "]
+    });
+
+    function formatChartLabel(value) {
+        if (value >= 1000000000) return d3.format(",.1f")(value / 1000000000) + ' bi';
+        if (value >= 1000000) return d3.format(",.1f")(value / 1000000) + ' mi';
+        if (value >= 1000) return d3.format(",.0f")(Math.floor(value / 1000)) + " mil";
+        return d3.format(",.0f")(value);
+    }
+    
+    function formatValueForTooltip(value) {
+        if (value >= 1000000) return formatChartLabel(value);
+        return d3.format(",")(Math.round(value));
+    }
+
+    /*******************************************************
+     * FUNÇÕES DO TOOLTIP
+     *******************************************************/
+    function showTooltip(event, data) {
+        const periodLabel = processedData.columnLabels.period || "Período";
+        const metricLabel = processedData.columnLabels.metric || "Métrica";
+        const valueLabel = processedData.columnLabels.id || "Contagem Distinta";
+
+        const formattedProportion = d3.format(".1%")(data.proportionalValue);
+        const formattedAbsolute = formatValueForTooltip(data.absoluteValue);
+        
+        const tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
+                             `${metricLabel}: ${formattedProportion}<br/>` + 
+                             `${valueLabel}: ${formattedAbsolute}`;
+        
+        tooltip
+            .style("display", "block")
+            .html(tooltipContent)
+            .style("left", (event.pageX - tooltip.node().offsetWidth / 2) + "px")
+            .style("top", (event.pageY - tooltip.node().offsetHeight - 10) + "px");
+    }
+
+    function hideTooltip() {
+        tooltip.style("display", "none");
+    }
+
+    /*******************************************************
+     * CONFIGURAÇÃO PARA DEBUG FORA DO SAS VA
+     *******************************************************/
     const SAMPLE_MESSAGE = {
-        resultName: "kpiCardSample",
-        rowCount: 6,
+        resultName: "kpiCardDistinctCountSample",
         data: [
-            ["Vendas Anuais", 2019, 1250000, 1500000, 2000000],
-            ["Vendas Anuais", 2020, 1380000, 1500000, 2000000],
-            ["Vendas Anuais", 2021, 1420000, 1500000, 2000000],
-            ["Vendas Anuais", 2022, 1650000, 1500000, 2000000],
-            ["Vendas Anuais", 2023, 1850000, 1500000, 2000000],
-            ["Vendas Anuais", 2024, 1920000, 1500000, 2000000]
+            // [Métrica, Ano, Resposta, ID da Escola]
+            ["Escolas com Internet", 2021, "Sim", 101],
+            ["Escolas com Internet", 2021, "Sim", 102],
+            ["Escolas com Internet", 2021, "Não", 103],
+            ["Escolas com Internet", 2022, "Sim", 101], // ID 101 se repete
+            ["Escolas com Internet", 2022, "Não", 102],
+            ["Escolas com Internet", 2022, "Sim", 104],
+            ["Escolas com Internet", 2022, "Sim", 105],
         ],
         columns: [
-            { label: "Título", type: "string" },
+            { label: "Métrica", type: "string" },
             { label: "Ano", type: "number" },
-            { label: "Valor Temporal", type: "number", format: { name: "BEST", precision: 0 } },
-            { label: "Média Histórica", type: "number", format: { name: "BEST", precision: 0 } },
-            { label: "Meta Anual", type: "number", format: { name: "BEST", precision: 0 } }
+            { label: "Resposta", type: "string" },
+            { label: "ID da Escola", type: "number" } // Nova coluna de ID
         ]
     };
 
     /*******************************************************
-     * FUNÇÕES DE CALLBACK DO SAS VA          *
+     * FUNÇÕES DE CALLBACK DO SAS VA
      *******************************************************/
-
     if (isInSASVA()) {
-        // Este bloco é executado APENAS DENTRO do SAS Visual Analytics
-        // Define a função de callback para receber dados do SAS VA
         if (typeof va !== 'undefined' && va.messagingUtil) {
             va.messagingUtil.setOnDataReceivedCallback(handleDataReceived);
         }
-
-        // Define a função de callback para redimensionamento da janela
         if (typeof va !== 'undefined' && va.contentUtil) {
             va.contentUtil.setupResizeListener(renderCard);
         }
     } else {
-        // Este bloco é executado FORA do SAS VA (para debug local)
-        // Usa os dados de exemplo para renderizar o card
         handleDataReceived(SAMPLE_MESSAGE);
-        // Adiciona um listener de redimensionamento padrão do navegador
         window.addEventListener("resize", renderCard);
     }
 
-    /**
-     * Verifica se está rodando dentro do SAS Visual Analytics
-     * @returns {boolean} - Verdadeiro se estiver no SAS VA
-     */
     function isInSASVA() {
         try {
-            // Verifica se está em iframe E se o objeto va está disponível
-            return window.self !== window.top && 
-                   typeof va !== 'undefined' && 
-                   va.messagingUtil && 
-                   va.contentUtil;
+            return window.self !== window.top && typeof va !== 'undefined' && va.messagingUtil && va.contentUtil;
         } catch (e) {
             return false;
         }
     }
 
-    /**
-     * Controla o fluxo de recebimento de dados para evitar atualizações simultâneas.
-     * @param {object} messageFromVA - O objeto de dados enviado pelo SAS VA.
-     */
     function handleDataReceived(messageFromVA) {
         const now = Date.now();
         if (now - lastRenderTime < renderDelay) {
-            setTimeout(function() { 
-                onDataReceived(messageFromVA); 
-            }, renderDelay);
+            setTimeout(() => onDataReceived(messageFromVA), renderDelay);
         } else {
             onDataReceived(messageFromVA);
         }
         lastRenderTime = now;
     }
 
-    /**
-     * Processa os dados recebidos do SAS VA e inicia a renderização.
-     * @param {object} messageFromVA - O objeto de dados.
-     */
+    /*******************************************************
+     * FUNÇÃO DE PROCESSAMENTO DE DADOS
+     *******************************************************/
     function onDataReceived(messageFromVA) {
         vaMessage = messageFromVA;
         VA_RESULT_NAME = messageFromVA.resultName;
-
-        // Validação de papéis (roles): espera dados temporais com múltiplas linhas
-        if (isInSASVA() && typeof va !== 'undefined' && va.contentUtil) {
-            const expectedRoles = ["string", "number", "number", "number", "number"];
-                
-            if (!va.contentUtil.validateRoles(messageFromVA, expectedRoles, false)) {
-                if (va.messagingUtil) {
-                    va.messagingUtil.postInstructionalMessage(
-                        VA_RESULT_NAME,
-                        "O Card KPI com Tendência Temporal espera que as colunas sejam atribuídas nesta ordem:\n" +
-                        " 1. Título (string) - Nome do KPI\n" +
-                        " 2. Período (número) - Ano ou período temporal\n" +
-                        " 3. Valor Temporal (número) - Valor para cada período\n" +
-                        " 4. Valor de Referência 1 (número) - Ex: Média histórica\n" +
-                        " 5. Valor de Referência 2 (número) - Ex: Meta ou objetivo\n\n" +
-                        "IMPORTANTE: Cada linha representa um período temporal diferente."
-                    );
-                }
-                return;
-            }
-        }
-
-        // Se não houver dados, limpa o gráfico e sai
+        
         if (!messageFromVA.data || messageFromVA.data.length === 0) {
             processedData = null;
             d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
             return;
         }
 
-        // Processa os dados das múltiplas linhas
         const columns = messageFromVA.columns;
         const allData = messageFromVA.data;
-        
-        // Agrupa os dados temporais
-        const timeSeriesData = [];
-        let titulo = "";
-        let valorReferencia1 = null;
-        let valorReferencia2 = null;
-        
-        // Processa cada linha de dados
-        allData.forEach(function(row, index) {
-            if (index === 0) {
-                // Pega informações da primeira linha
-                titulo = row[0];
-                valorReferencia1 = row[3];
-                valorReferencia2 = row[4];
-            }
+        const titulo = allData[0][0];
+
+        // ** LÓGICA DE CONTagem distinta **
+        // Identifica as colunas pela ordem esperada.
+        const metricIndex = 0;
+        const periodIndex = 1;
+        const answerIndex = 2;
+        const idIndex = 3;
+
+        const aggregatedByPeriod = d3.group(allData, d => d[periodIndex]);
+
+        const calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
+            // Contagem distinta do TOTAL de IDs para o período
+            const totalUniqueIDs = new Set(values.map(d => d[idIndex]));
+            const totalCount = totalUniqueIDs.size;
             
-            // Adiciona ponto temporal
-            timeSeriesData.push({
-                periodo: row[1], // Ano ou período
-                valor: row[2],   // Valor temporal
-                ref1: row[3],    // Valor de referência 1
-                ref2: row[4]     // Valor de referência 2
-            });
-        });
+            // Contagem distinta dos IDs com resposta "Sim"
+            const simValues = values.filter(d => d[answerIndex] === POSITIVE_ANSWER);
+            const simUniqueIDs = new Set(simValues.map(d => d[idIndex]));
+            const simCount = simUniqueIDs.size;
+            
+            const proportion = totalCount > 0 ? simCount / totalCount : 0;
+            
+            return {
+                periodo: +period,
+                proportionalValue: proportion, // Proporção baseada na contagem distinta
+                absoluteValue: simCount      // Valor absoluto é a contagem distinta de "Sim"
+            };
+        }).sort((a, b) => a.periodo - b.periodo);
         
-        // Ordena por período para garantir ordem cronológica
-        timeSeriesData.sort(function(a, b) { 
-            return a.periodo - b.periodo; 
-        });
-        
-        // Calcula valores derivados
-        const valores = timeSeriesData.map(function(d) { return d.valor; });
-        const ultimoValor = valores[valores.length - 1];
-        const primeiroValor = valores[0];
-        
-        // Cálculo correto da variação percentual: ((Final - Inicial) / Inicial) * 100
-        let variacao = 0;
-        if (primeiroValor !== 0 && primeiroValor !== null && ultimoValor !== null) {
-            variacao = ((ultimoValor - primeiroValor) / primeiroValor) * 100;
+        const proportionalValues = calculatedData.map(d => d.proportionalValue);
+        const ultimoValorProp = proportionalValues[proportionalValues.length - 1];
+        const primeiroValorProp = proportionalValues[0];
+        const penultimoValorProp = proportionalValues.length > 1 ? proportionalValues[proportionalValues.length - 2] : null;
+
+        let variacaoPeriodo = (ultimoValorProp - primeiroValorProp) * 100;
+        let variacaoAnterior = penultimoValorProp !== null ? (ultimoValorProp - penultimoValorProp) * 100 : 0;
+
+        let mediaAnual = 0;
+        if (proportionalValues.length > 1) {
+            const variacoesAnuais = [];
+            for (let i = 1; i < proportionalValues.length; i++) {
+                variacoesAnuais.push((proportionalValues[i] - proportionalValues[i-1]) * 100);
+            }
+            mediaAnual = d3.mean(variacoesAnuais) || 0;
         }
-        
+
         processedData = {
             titulo: titulo,
+            columnLabels: {
+                period: columns[periodIndex].label,
+                metric: columns[metricIndex].label,
+                id: columns[idIndex].label
+            },
             valorPrincipal: {
                 label: "Variação no Período",
-                value: variacao,
-                format: function(val) { 
-                    return val !== null ? d3.format("+.1f")(val) + "%" : "N/A"; 
-                }
+                value: variacaoPeriodo,
+                format: val => `${d3.format("+.1f")(val)} p.p.`
             },
-            valorSecundario1: {
-                label: columns[3].label,
-                value: valorReferencia1,
-                format: function(val) { 
-                    return val !== null ? d3.format(".1f")(val) : "N/A"; 
-                }
+            valorSecundario: {
+                label: "Variação vs Ano Anterior",
+                value: variacaoAnterior,
+                format: val => `${d3.format("+.1f")(val)} p.p.`
             },
-            valorSecundario2: {
-                label: columns[4].label,
-                value: valorReferencia2,
-                format: function(val) { 
-                    return val !== null ? d3.format(".1f")(val) : "N/A"; 
-                }
+            valorTerciario: {
+                label: "Média Anual",
+                value: mediaAnual,
+                format: val => `${d3.format("+.1f")(val)} p.p.`
             },
-            // Dados temporais para linha de tendência
             serieTemporal: {
-                dados: timeSeriesData,
-                valores: valores,
-                periodos: timeSeriesData.map(function(d) { return d.periodo.toString(); }),
-                label: columns[2].label
+                dados: calculatedData,
+                label: columns[metricIndex].label
             }
         };
 
@@ -306,278 +323,134 @@ function initializeKPICard() {
     }
 
     /*******************************************************
-     * FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO      *
+     * FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO
      *******************************************************/
-
-    /**
-     * Renderiza ou atualiza o card KPI no SVG.
-     * Esta função é chamada na primeira carga, em atualizações de dados e em redimensionamentos.
-     */
     function renderCard() {
-        if (!processedData) {
-            return;
-        }
-
-        // Obtém as dimensões do container
+        if (!processedData) return;
+        
         const width = document.body.clientWidth;
         const height = document.body.clientHeight;
-
-        // Limpa o container antes de desenhar
+        const isCompactHorizontal = (width / height) > 2.5;
+        
         d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
 
-        // Cria o elemento SVG principal
-        svg = d3.select("#" + SVG_CONTAINER_ID)
-            .append("svg")
-            .attr("width", width)
-            .attr("height", height);
-
-        // --- Definição do Gradiente ---
+        svg = d3.select("#" + SVG_CONTAINER_ID).append("svg").attr("width", width).attr("height", height);
+        
         const defs = svg.append("defs");
-        const gradient = defs.append("linearGradient")
-            .attr("id", "cardGradient")
-            .attr("x1", "0%").attr("y1", "0%")
-            .attr("x2", "100%").attr("y2", "100%");
-        gradient.append("stop").attr("offset", "0%").attr("stop-color", "#afca0b");
-        gradient.append("stop").attr("offset", "100%").attr("stop-color", "#009640");
+        const gradient = defs.append("linearGradient").attr("id", "cardGradient").attr("x1", "0%").attr("y1", "0%").attr("x2", "100%").attr("y2", "100%");
+        gradient.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff");
+        gradient.append("stop").attr("offset", "100%").attr("stop-color", "#4CAF50");
 
-        // --- Fundo do Card ---
-        svg.append("rect")
-            .attr("width", width)
-            .attr("height", height)
-            .attr("rx", 8) // Bordas arredondadas
-            .attr("fill", "url(#cardGradient)");
+        svg.append("rect").attr("width", width).attr("height", height).attr("rx", 8).attr("fill", "url(#cardGradient)").attr("stroke", "#d0d0d0").attr("stroke-width", 1);
 
-        // Agrupador principal para facilitar o posicionamento
         mainGroup = svg.append("g");
         
-        // --- Cálculo de Posições e Tamanhos Responsivos ---
-        const padding = width * 0.06; // 6% da largura como preenchimento
+        const padding = Math.max(width * 0.015, 8);
         const contentWidth = width - (padding * 2);
         
-        const titleFontSize = Math.min(height * 0.12, width * 0.075);
-        const mainValueFontSize = Math.min(height * 0.22, width * 0.13);
-        const labelFontSize = Math.min(height * 0.08, width * 0.045);
-        const secondaryValueFontSize = Math.min(height * 0.09, width * 0.05);
-
-        // --- Título Principal ---
-        mainGroup.append("text")
-            .attr("class", "title-text")
-            .attr("x", width / 2)
-            .attr("y", padding + titleFontSize * 0.7)
-            .attr("font-size", titleFontSize + "px")
-            .text(processedData.titulo);
-
-        // --- Seção Principal: Valor + Gráfico lado a lado ---
-        const mainSectionY = height * 0.3;
-        const mainSectionHeight = height * 0.35;
+        let titleFontSize, labelFontSize, valueFontSize, titleHeight;
         
-        // Divide a seção principal em duas partes: valor (60%) e gráfico (40%)
-        const valorWidth = contentWidth * 0.55;
-        const chartWidth = contentWidth * 0.4;
-        const chartX = padding + valorWidth + (contentWidth * 0.05); // 5% de espaçamento
-
-        // --- Rótulo do Valor Principal ---
-        mainGroup.append("text")
-            .attr("class", "main-label-text")
-            .attr("x", padding)
-            .attr("y", mainSectionY)
-            .attr("font-size", labelFontSize + "px")
-            .text(processedData.valorPrincipal.label);
-
-        // --- Valor Principal ---
-        mainGroup.append("text")
-            .attr("class", "main-value-text")
-            .attr("x", padding)
-            .attr("y", mainSectionY + mainValueFontSize * 1.2)
-            .attr("font-size", mainValueFontSize + "px")
-            .text(processedData.valorPrincipal.format(processedData.valorPrincipal.value));
-
-        // --- Gráfico de Tendência Temporal (ao lado do valor) ---
-        const chartHeight = Math.min(mainSectionHeight * 0.8, chartWidth * 0.6);
-        const chartY = mainSectionY - (chartHeight * 0.1);
-        
-        const chartGroup = mainGroup.append("g")
-            .attr("transform", "translate(" + chartX + ", " + chartY + ")");
-        
-        // Desenha fundo semi-transparente para o gráfico
-        chartGroup.append("rect")
-            .attr("width", chartWidth)
-            .attr("height", chartHeight)
-            .attr("rx", 4)
-            .attr("fill", "rgba(0,0,0,0.1)")
-            .attr("stroke", "rgba(255,255,255,0.2)")
-            .attr("stroke-width", 1);
-        
-        const valores = processedData.serieTemporal.valores;
-        const periodos = processedData.serieTemporal.periodos;
-        
-        if (valores.length > 0) {
-            // Calcula escala para os dados
-            const minVal = d3.min(valores);
-            const maxVal = d3.max(valores);
-            const range = maxVal - minVal || 1;
-            
-            // Margem interna do gráfico
-            const chartPadding = chartWidth * 0.08;
-            const innerWidth = chartWidth - (chartPadding * 2);
-            const innerHeight = chartHeight - (chartPadding * 2);
-            
-            // Prepara os dados para a linha
-            const lineData = valores.map(function(valor, i) {
-                const x = chartPadding + (innerWidth / Math.max(valores.length - 1, 1)) * i;
-                const normalizedY = range > 0 ? (valor - minVal) / range : 0.5;
-                const y = chartPadding + innerHeight * (1 - normalizedY);
-                
-                return {
-                    x: x,
-                    y: y,
-                    value: valor,
-                    period: periodos[i] || ("P" + (i + 1))
-                };
-            });
-            
-            // Desenha área sob a curva (preenchimento)
-            const area = d3.area()
-                .x(function(d) { return d.x; })
-                .y0(chartHeight - chartPadding)
-                .y1(function(d) { return d.y; })
-                .curve(d3.curveMonotoneX);
-            
-            chartGroup.append("path")
-                .datum(lineData)
-                .attr("d", area)
-                .attr("fill", "rgba(255, 255, 255, 0.15)")
-                .attr("opacity", 0.6);
-            
-            // Desenha a linha principal
-            const line = d3.line()
-                .x(function(d) { return d.x; })
-                .y(function(d) { return d.y; })
-                .curve(d3.curveMonotoneX);
-            
-            chartGroup.append("path")
-                .datum(lineData)
-                .attr("d", line)
-                .attr("stroke", "#ffffff")
-                .attr("stroke-width", Math.max(2.5, width * 0.005))
-                .attr("fill", "none")
-                .attr("stroke-linecap", "round")
-                .attr("opacity", 0.9);
-                
-            // Adiciona pontos interativos
-            const points = chartGroup.selectAll(".trend-point")
-                .data(lineData)
-                .enter()
-                .append("g")
-                .attr("class", "trend-point");
-                
-            // Círculo principal
-            points.append("circle")
-                .attr("cx", function(d) { return d.x; })
-                .attr("cy", function(d) { return d.y; })
-                .attr("r", Math.max(3, width * 0.004))
-                .attr("fill", "#ffffff")
-                .attr("stroke", "rgba(0,0,0,0.2)")
-                .attr("stroke-width", 1);
-                
-            // Círculo interno para destaque
-            points.append("circle")
-                .attr("cx", function(d) { return d.x; })
-                .attr("cy", function(d) { return d.y; })
-                .attr("r", Math.max(1.5, width * 0.002))
-                .attr("fill", "#afca0b");
-            
-            // Adiciona tooltips invisíveis para interação
-            points.append("circle")
-                .attr("cx", function(d) { return d.x; })
-                .attr("cy", function(d) { return d.y; })
-                .attr("r", Math.max(8, width * 0.008))
-                .attr("fill", "transparent")
-                .attr("cursor", "pointer")
-                .append("title")
-                .text(function(d) { 
-                    return d.period + ": " + d3.format(",.0f")(d.value); 
-                });
-                
-            // Adiciona labels dos anos nos extremos (se há espaço)
-            if (chartWidth > 80 && periodos.length > 1) {
-                const labelFontSize = Math.min(9, width * 0.018);
-                
-                // Primeiro período
-                chartGroup.append("text")
-                    .attr("x", chartPadding)
-                    .attr("y", chartHeight + 12)
-                    .attr("font-size", labelFontSize + "px")
-                    .attr("fill", "rgba(255,255,255,0.7)")
-                    .attr("text-anchor", "start")
-                    .text(periodos[0]);
-                    
-                // Último período
-                chartGroup.append("text")
-                    .attr("x", chartWidth - chartPadding)
-                    .attr("y", chartHeight + 12)
-                    .attr("font-size", labelFontSize + "px")
-                    .attr("fill", "rgba(255,255,255,0.7)")
-                    .attr("text-anchor", "end")
-                    .text(periodos[periodos.length - 1]);
-            }
-            
+        if (isCompactHorizontal) {
+            titleFontSize = Math.min(Math.max(height * 0.1, 12), 16);
+            labelFontSize = Math.min(Math.max(height * 0.12, 10), 16);
+            valueFontSize = Math.min(Math.max(height * 0.16, 12), 20);
+            titleHeight = Math.max(height * 0.18, 25);
         } else {
-            // Exibe mensagem quando não há dados temporais
-            chartGroup.append("text")
-                .attr("x", chartWidth / 2)
-                .attr("y", chartHeight / 2)
-                .attr("font-size", Math.min(12, width * 0.025) + "px")
-                .attr("fill", "rgba(255,255,255,0.6)")
-                .attr("text-anchor", "middle")
-                .text("Sem dados temporais");
+            titleFontSize = Math.min(Math.max(height * 0.07, 16), width * 0.045, 24);
+            labelFontSize = Math.min(Math.max(height * 0.07, 16), width * 0.04, 24);
+            valueFontSize = Math.min(Math.max(height * 0.09, 20), width * 0.05, 30);
+            titleHeight = Math.max(height * 0.12, 45);
         }
 
-        // --- Linha Separadora ---
-        const separatorY = height * 0.7;
-        mainGroup.append("line")
-            .attr("x1", padding)
-            .attr("y1", separatorY)
-            .attr("x2", width - padding)
-            .attr("y2", separatorY)
-            .attr("stroke", "rgba(255,255,255,0.3)")
-            .attr("stroke-width", 1);
+        const contentSectionHeight = height - titleHeight - padding;
+        
+        let chartWidthRatio = isCompactHorizontal ? 0.72 : 0.75;
+        
+        const chartWidth = Math.max(contentWidth * chartWidthRatio, 180);
+        const variationsWidth = contentWidth - chartWidth - padding;
 
-        // --- Seção Inferior ---
-        const bottomSectionY = separatorY + height * 0.08;
-        const bottomSectionSpacing = height * 0.08;
+        mainGroup.append("text").attr("class", "title-text").attr("x", width / 2).attr("y", padding + titleFontSize * 0.8).attr("font-size", titleFontSize + "px").text(processedData.titulo);
+
+        const chartY = titleHeight;
+        const chartGroup = mainGroup.append("g").attr("transform", `translate(${padding}, ${chartY})`);
         
-        // Rótulo Valor Secundário 1
-        mainGroup.append("text")
-            .attr("class", "secondary-label-text")
-            .attr("x", padding)
-            .attr("y", bottomSectionY)
-            .attr("font-size", labelFontSize + "px")
-            .text(processedData.valorSecundario1.label);
+        const { dados } = processedData.serieTemporal;
+        const absoluteValues = dados.map(d => d.absoluteValue);
         
-        // Valor Secundário 1
-        mainGroup.append("text")
-            .attr("class", "secondary-value-text")
-            .attr("x", width - padding)
-            .attr("y", bottomSectionY)
-            .attr("font-size", secondaryValueFontSize + "px")
-            .text(processedData.valorSecundario1.format(processedData.valorSecundario1.value));
+        if (absoluteValues.length > 0) {
+            const minVal = d3.min(absoluteValues);
+            const maxVal = d3.max(absoluteValues);
+            const range = maxVal - minVal || 1;
             
-        // Rótulo Valor Secundário 2
-        mainGroup.append("text")
-            .attr("class", "secondary-label-text")
-            .attr("x", padding)
-            .attr("y", bottomSectionY + bottomSectionSpacing)
-            .attr("font-size", labelFontSize + "px")
-            .text(processedData.valorSecundario2.label);
+            const innerChartPadding = Math.max(chartWidth * 0.04, 10);
+            const innerWidth = chartWidth - (innerChartPadding * 2);
+            const chartHeight = Math.max(contentSectionHeight * 0.75, 80);
+            const innerHeight = chartHeight - (innerChartPadding * 2);
+            
+            const lineData = dados.map((d, i) => {
+                const x = innerChartPadding + (innerWidth / Math.max(dados.length - 1, 1)) * i;
+                const normalizedY = range > 0 ? (d.absoluteValue - minVal) / range : 0.5;
+                return { 
+                    x, 
+                    y: innerChartPadding + innerHeight * (1 - normalizedY), 
+                    absoluteValue: d.absoluteValue, 
+                    proportionalValue: d.proportionalValue,
+                    period: d.periodo 
+                };
+            });
 
-        // Valor Secundário 2
-        mainGroup.append("text")
-            .attr("class", "secondary-value-text")
-            .attr("x", width - padding)
-            .attr("y", bottomSectionY + bottomSectionSpacing)
-            .attr("font-size", secondaryValueFontSize + "px")
-            .text(processedData.valorSecundario2.format(processedData.valorSecundario2.value));
+            const line = d3.line().x(d => d.x).y(d => d.y).curve(d3.curveMonotoneX);
+            const strokeWidth = isCompactHorizontal ? Math.min(Math.max(height * 0.02, 2), 5) : Math.min(Math.max(width * 0.008, 3), 8);
+
+            chartGroup.append("path").datum(lineData).attr("d", line).attr("stroke", "#1A9850").attr("stroke-width", strokeWidth).attr("fill", "none").attr("stroke-linecap", "round");
+
+            const pointRadius = isCompactHorizontal ? Math.min(Math.max(height * 0.015, 2), 4) : Math.min(Math.max(width * 0.005, 3), 7);
+            
+            chartGroup.selectAll(".data-point").data(lineData).enter().append("circle").attr("class", "data-point")
+                .attr("cx", d => d.x).attr("cy", d => d.y).attr("r", pointRadius)
+                .attr("fill", "#1A9850").attr("stroke", "#ffffff").attr("stroke-width", Math.max(pointRadius * 0.3, 1))
+                .style("cursor", "pointer")
+                .on("mouseenter", function(event, d) {
+                    d3.select(this).transition().duration(150).attr("r", pointRadius * 1.4);
+                    showTooltip(event, d);
+                })
+                .on("mouseleave", function() {
+                    d3.select(this).transition().duration(150).attr("r", pointRadius);
+                    hideTooltip();
+                })
+                .on("mousemove", showTooltip);
+
+            const yearLabelFontSize = isCompactHorizontal ? Math.min(Math.max(height * 0.08, 7), 12) : Math.min(Math.max(height * 0.04, 10), width * 0.025, 15);
+            
+            chartGroup.selectAll(".value-label").data(lineData).enter().append("text").attr("class", "value-label")
+                .attr("x", d => d.x).attr("y", d => d.y - Math.max(8, height * 0.015))
+                .attr("font-size", yearLabelFontSize + "px").attr("fill", "#1a4f0e").attr("text-anchor", "middle").attr("font-weight", "700")
+                .text(d => formatChartLabel(d.absoluteValue));
+            
+            chartGroup.selectAll(".year-label").data(lineData).enter().append("text").attr("class", "year-label")
+                .attr("x", d => d.x).attr("y", chartHeight + Math.max(12, height * 0.02))
+                .attr("font-size", yearLabelFontSize + "px").attr("fill", "#2d5016").attr("text-anchor", "middle").attr("font-weight", "600")
+                .text(d => d.period);
+        }
+
+        const separatorX = padding + chartWidth + (padding / 2);
+        mainGroup.append("line").attr("x1", separatorX).attr("y1", chartY).attr("x2", separatorX).attr("y2", chartY + contentSectionHeight).attr("stroke", "rgba(45,80,22,0.3)").attr("stroke-width", 1);
+
+        const variationsX = separatorX + (padding / 2);
+        const variationsGroup = mainGroup.append("g").attr("transform", `translate(${variationsX}, ${chartY})`);
+        
+        const availableVariationsHeight = contentSectionHeight * 0.9;
+        const variationBlockHeight = availableVariationsHeight / 3;
+        const variationStartY = contentSectionHeight * 0.05;
+        const labelValueSpacing = isCompactHorizontal ? Math.max(variationBlockHeight * 0.45, 12) : Math.max(variationBlockHeight * 0.35, 20);
+        const variationCenterX = variationsWidth / 2;
+
+        const variations = [processedData.valorPrincipal, processedData.valorSecundario, processedData.valorTerciario];
+        variations.forEach((variation, i) => {
+            const yPos = variationStartY + (i * variationBlockHeight);
+            variationsGroup.append("text").attr("class", "secondary-label-text").attr("x", variationCenterX).attr("y", yPos).attr("font-size", labelFontSize + "px").text(variation.label);
+            variationsGroup.append("text").attr("class", "secondary-value-text").attr("x", variationCenterX).attr("y", yPos + labelValueSpacing).attr("font-size", valueFontSize + "px").text(variation.format(variation.value));
+        });
     }
 }
 </script>
