@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <!--
-VERSÃO FINAL COM LÓGICA CONDICIONAL
-- Calcula KPIs em valores absolutos ou pontos percentuais dependendo de um parâmetro.
-- Identifica colunas pela ordem para maior robustez.
-- Gráfico de linha reflete o modo de cálculo (total vs. "Sim").
+VERSÃO SIMPLIFICADA E CORRIGIDA
+- Lógica de parâmetro REMOVIDA.
+- O card agora tem um comportamento único: calcula sempre a proporção.
+- Pré-filtra os dados com base em uma 5ª coluna de "flag de tipo".
+- Calcula KPIs baseado na contagem distinta de um ID.
 -->
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>KPI Card Condicional para SAS VA</title>
+    <title>KPI Card com Proporção para SAS VA</title>
     <!-- Import D3.js -->
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
@@ -101,9 +102,6 @@ function initializeKPICard() {
      * DECLARAÇÃO DE VARIÁVEIS E CONFIGURAÇÕES
      *******************************************************/
     const SVG_CONTAINER_ID = "chart-container";
-    // ** IMPORTANTE: CONFIGURE O NOME DO SEU PARÂMETRO AQUI **
-    const CHARACTERISTIC_PARAMETER_NAME = 'COLUNA Parâmetro'; // Substitua pelo nome exato do seu parâmetro
-
     let VA_RESULT_NAME;
     let processedData;
     let lastRenderTime = 0;
@@ -137,20 +135,13 @@ function initializeKPICard() {
     function showTooltip(event, data) {
         const periodLabel = processedData.columnLabels.period;
         const metricLabel = processedData.columnLabels.metric;
-        const valueLabel = processedData.columnLabels.value;
+        const countLabel = "Nº de Escolas";
         const formattedAbsolute = formatValueForTooltip(data.absoluteValue);
+        const formattedProportion = d3.format(".1%")(data.proportionalValue);
 
-        let tooltipContent;
-        
-        if (processedData.isProportional) {
-            const formattedProportion = d3.format(".1%")(data.proportionalValue);
-            tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
+        const tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
                              `Proporção: ${formattedProportion}<br/>` + 
-                             `${valueLabel} (Sim): ${formattedAbsolute}`;
-        } else {
-            tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
-                             `${valueLabel} (Total): ${formattedAbsolute}`;
-        }
+                             `${countLabel} (Sim): ${formattedAbsolute}`;
         
         tooltip
             .style("display", "block")
@@ -169,15 +160,18 @@ function initializeKPICard() {
     const SAMPLE_MESSAGE = {
         resultName: "kpiCardDebug",
         data: [
-            ["Escolas (Total)", 2021, "Sim", 800], ["Escolas (Total)", 2021, "Não", 200],
-            ["Escolas (Total)", 2022, "Sim", 900], ["Escolas (Total)", 2022, "Não", 100],
+            ["Escolas Indígenas com Internet", 2021, "Sim", 101, "Sim"],
+            ["Escolas Indígenas com Internet", 2021, "Não", 103, "Sim"],
+            ["Escolas Indígenas com Internet", 2022, "Sim", 101, "Sim"], 
+            ["Escolas Indígenas com Internet", 2022, "Sim", 104, "Sim"],
+            ["Escolas Indígenas com Internet", 2022, "Sim", 201, "Não"], 
         ],
-        parameters: { [CHARACTERISTIC_PARAMETER_NAME]: null }, 
         columns: [
             { label: "Métrica", type: "string" },
             { label: "Ano", type: "number" },
             { label: "Resposta", type: "string" },
-            { label: "Frequência", type: "number" }
+            { label: "CO_ENTIDADE", type: "any" },
+            { label: "IN_INDIGENA", type: "string" }
         ]
     };
 
@@ -214,8 +208,8 @@ function initializeKPICard() {
     function onDataReceived(messageFromVA) {
         VA_RESULT_NAME = messageFromVA.resultName;
         
-        if (!messageFromVA.data || messageFromVA.data.length === 0 || messageFromVA.columns.length < 4) {
-            d3.select("#chart-container").html(`<h1>Erro de Configuração</h1><p>São necessárias 4 colunas nesta ordem: Métrica, Ano, Resposta, Valor/Medida.</p>`);
+        if (!messageFromVA.data || messageFromVA.data.length === 0 || messageFromVA.columns.length < 5) {
+            d3.select("#chart-container").html(`<h1>Erro de Configuração</h1><p>São necessárias 5 colunas nesta ordem: Métrica, Ano, Resposta, ID e a Flag de Tipo de Escola.</p>`);
             processedData = null;
             return;
         }
@@ -223,41 +217,38 @@ function initializeKPICard() {
         const columns = messageFromVA.columns;
         const allData = messageFromVA.data;
         
-        const metricIndex = 0, periodIndex = 1, answerIndex = 2, valueIndex = 3;
+        const metricIndex = 0, periodIndex = 1, answerIndex = 2, idIndex = 3, flagIndex = 4;
         const titulo = allData[0][metricIndex];
 
-        const characteristicFilterValue = (messageFromVA.parameters && messageFromVA.parameters[CHARACTERISTIC_PARAMETER_NAME]) 
-            ? messageFromVA.parameters[CHARACTERISTIC_PARAMETER_NAME].values[0] 
-            : null;
-        
-        const isProportionalMode = characteristicFilterValue !== null && characteristicFilterValue !== undefined && characteristicFilterValue !== "";
+        // 1. FILTRAGEM DE BASE: Filtra os dados pela 5ª coluna de flag.
+        const preFilteredData = allData.filter(row => row[flagIndex] === POSITIVE_ANSWER);
 
-        const aggregatedByPeriod = d3.group(allData, d => d[periodIndex]);
-
-        let calculatedData, kpiValues, kpiFormat, variationUnit;
-
-        if (isProportionalMode) {
-            // ** MODO PROPORCIONAL (Filtro Ativo) **
-            calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
-                const totalSum = d3.sum(values, d => d[valueIndex]);
-                const simSum = d3.sum(values.filter(d => d[answerIndex] === POSITIVE_ANSWER), d => d[valueIndex]);
-                const proportion = totalSum > 0 ? simSum / totalSum : 0;
-                return { periodo: +period, proportionalValue: proportion, absoluteValue: simSum };
-            }).sort((a, b) => a.periodo - b.periodo);
-            kpiValues = calculatedData.map(d => d.proportionalValue);
-            variationUnit = " p.p.";
-            kpiFormat = (val) => `${d3.format("+.1f")(val * 100)}${variationUnit}`;
-            
-        } else {
-            // ** MODO ABSOLUTO (Nenhum Filtro) **
-            calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
-                const totalSum = d3.sum(values, d => d[valueIndex]);
-                return { periodo: +period, absoluteValue: totalSum };
-            }).sort((a, b) => a.periodo - b.periodo);
-            kpiValues = calculatedData.map(d => d.absoluteValue);
-            kpiFormat = (val) => d3.format("+,.0f")(val);
+        if (preFilteredData.length === 0) {
+            d3.select("#chart-container").html(`<h1>Sem dados para exibir</h1><p>Nenhuma escola corresponde à flag '${columns[flagIndex].label}'.</p>`);
+            return;
         }
+
+        const aggregatedByPeriod = d3.group(preFilteredData, d => d[periodIndex]);
+
+        // ** MODO PROPORCIONAL (ÚNICO MODO) - CONTAGEM DISTINTA **
+        const calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
+            const totalUniqueIDs = new Set(values.map(d => d[idIndex]));
+            const totalCount = totalUniqueIDs.size;
+            const simValues = values.filter(d => d[answerIndex] === POSITIVE_ANSWER);
+            const simUniqueIDs = new Set(simValues.map(d => d[idIndex]));
+            const simCount = simUniqueIDs.size;
+            const proportion = totalCount > 0 ? simCount / totalCount : 0;
+            return { periodo: +period, proportionalValue: proportion, absoluteValue: simCount };
+        }).sort((a, b) => a.periodo - b.periodo);
         
+        const kpiValues = calculatedData.map(d => d.proportionalValue);
+        const kpiFormat = (val) => `${d3.format("+.1f")(val * 100)} p.p.`;
+        
+        if (kpiValues.length === 0) {
+           d3.select("#chart-container").html(`<h1>Sem dados para exibir</h1><p>Não há dados suficientes para os períodos selecionados.</p>`);
+           return;
+        }
+
         const ultimoValor = kpiValues[kpiValues.length - 1];
         const primeiroValor = kpiValues[0];
         const penultimoValor = kpiValues.length > 1 ? kpiValues[kpiValues.length - 2] : null;
@@ -268,27 +259,14 @@ function initializeKPICard() {
 
         processedData = {
             titulo: titulo,
-            isProportional: isProportionalMode,
             columnLabels: {
                 period: columns[periodIndex].label,
                 metric: columns[metricIndex].label,
-                value: columns[valueIndex].label
+                id: columns[idIndex].label
             },
-            valorPrincipal: {
-                label: "Variação no Período",
-                value: variacaoPeriodo,
-                format: kpiFormat
-            },
-            valorSecundario: {
-                label: "Variação vs Ano Anterior",
-                value: variacaoAnterior,
-                format: kpiFormat
-            },
-            valorTerciario: {
-                label: "Média Anual",
-                value: mediaAnual,
-                format: kpiFormat
-            },
+            valorPrincipal: { label: "Variação no Período", value: variacaoPeriodo, format: kpiFormat },
+            valorSecundario: { label: "Variação vs Ano Anterior", value: variacaoAnterior, format: kpiFormat },
+            valorTerciario: { label: "Média Anual", value: mediaAnual, format: kpiFormat },
             serieTemporal: { dados: calculatedData }
         };
 
