@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<!--
+Adaptado para SAS Visual Analytics.
+Lógica de cálculo de proporção baseada no gráfico de radar anterior.
+Mantém as métricas de variação do card, mas aplicadas sobre os percentuais calculados.
+CORREÇÃO: Substituído d3.nest() por d3.group() para compatibilidade com D3.js v7+.
+-->
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>KPI Card com Lógica de Proporção para SAS VA</title>
+    <!-- Import D3.js -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+    <!-- Importar utilitários do SAS VA -->
+    <script type="text/javascript">
+        if (typeof window !== 'undefined' && window.self !== window.top) {
+            try {
+                document.write('<script type="text/javascript" src="../../util/messagingUtil.js"><\/script>');
+                document.write('<script type="text/javascript" src="../../util/contentUtil.js"><\/script>');
+            } catch(e) {
+                console.log("Utilitários do SAS VA não disponíveis");
+            }
+        }
+    </script>
+</head>
+<body>
+<style type="text/css">
+    html, body, svg {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Avenir Next', 'Avenir', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background-color: #f5f5f5;
+    }
+
+    .title-text {
+        fill: #1a4f0e;
+        font-weight: 700;
+        text-anchor: middle;
+        text-shadow: 0px 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .main-label-text {
+        fill: #2d5016;
+        font-weight: 600;
+    }
+
+    .main-value-text {
+        fill: #1a4f0e;
+        font-weight: 700;
+        text-shadow: 0px 2px 4px rgba(0,0,0,0.15);
+    }
+
+    .secondary-label-text {
+        fill: #2d5016;
+        font-weight: 600;
+        text-anchor: middle;
+    }
+
+    .secondary-value-text {
+        fill: #1a4f0e;
+        font-weight: 700;
+        text-anchor: middle;
+        text-shadow: 0px 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .tooltip {
+        position: absolute;
+        background-color: rgba(26, 79, 14, 0.95);
+        color: white;
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        pointer-events: none;
+        z-index: 1000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        border: 1px solid rgba(255,255,255,0.2);
+        display: none;
+        line-height: 1.4;
+    }
+
+    .tooltip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border: 5px solid transparent;
+        border-top-color: rgba(26, 79, 14, 0.95);
+    }
+</style>
+
+<div id="chart-container"></div>
+<!-- Tooltip element -->
+<div id="tooltip" class="tooltip"></div>
+
+<script>
+"use strict";
+
+function waitForD3(callback) {
+    if (typeof d3 !== 'undefined') {
+        callback();
+    } else {
+        setTimeout(function() { waitForD3(callback); }, 100);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    waitForD3(initializeKPICard);
+});
+
+function initializeKPICard() {
+    /*******************************************************
+     * DECLARAÇÃO DE VARIÁVEIS
+     *******************************************************/
+    const SVG_CONTAINER_ID = "chart-container";
+    let VA_RESULT_NAME;
+    let vaMessage;
+    let processedData;
+    let lastRenderTime = 0;
+    const renderDelay = 250;
+    let svg, mainGroup;
+    const tooltip = d3.select("#tooltip");
+    const POSITIVE_ANSWER = "Sim"; // Define o valor positivo para o cálculo da proporção
+
+    /*******************************************************
+     * FUNÇÕES DO TOOLTIP
+     *******************************************************/
+    function showTooltip(event, data) {
+        const periodLabel = processedData.columnLabels.period || "Período";
+        const valueLabel = processedData.columnLabels.value || "Proporção"; // Agora é uma proporção
+        const formattedValue = d3.format(".1%")(data.value); // Formata como percentual
+        
+        const tooltipContent = `${periodLabel}: ${data.period}<br/>${valueLabel}: ${formattedValue}`;
+        
+        tooltip
+            .style("display", "block")
+            .html(tooltipContent)
+            .style("left", (event.pageX - tooltip.node().offsetWidth / 2) + "px")
+            .style("top", (event.pageY - tooltip.node().offsetHeight - 10) + "px");
+    }
+
+    function hideTooltip() {
+        tooltip.style("display", "none");
+    }
+
+    /*******************************************************
+     * CONFIGURAÇÃO PARA DEBUG FORA DO SAS VA
+     *******************************************************/
+    const SAMPLE_MESSAGE = {
+        resultName: "kpiCardProportionSample",
+        rowCount: 6,
+        data: [
+            // [Título, Ano, Resposta, Valor]
+            ["Taxa de Acesso à Internet", 2021, "Sim", 80],
+            ["Taxa de Acesso à Internet", 2021, "Não", 20],
+            ["Taxa de Acesso à Internet", 2022, "Sim", 85],
+            ["Taxa de Acesso à Internet", 2022, "Não", 15],
+            ["Taxa de Acesso à Internet", 2023, "Sim", 82],
+            ["Taxa de Acesso à Internet", 2023, "Não", 18],
+            ["Taxa de Acesso à Internet", 2024, "Sim", 90],
+            ["Taxa de Acesso à Internet", 2024, "Não", 10],
+        ],
+        columns: [
+            { label: "Métrica", type: "string" },
+            { label: "Ano", type: "number" },
+            { label: "Resposta", type: "string" },
+            { label: "Valor", type: "number" }
+        ]
+    };
+
+    /*******************************************************
+     * FUNÇÕES DE CALLBACK DO SAS VA
+     *******************************************************/
+    if (isInSASVA()) {
+        if (typeof va !== 'undefined' && va.messagingUtil) {
+            va.messagingUtil.setOnDataReceivedCallback(handleDataReceived);
+        }
+        if (typeof va !== 'undefined' && va.contentUtil) {
+            va.contentUtil.setupResizeListener(renderCard);
+        }
+    } else {
+        handleDataReceived(SAMPLE_MESSAGE);
+        window.addEventListener("resize", renderCard);
+    }
+
+    function isInSASVA() {
+        try {
+            return window.self !== window.top && typeof va !== 'undefined' && va.messagingUtil && va.contentUtil;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function handleDataReceived(messageFromVA) {
+        const now = Date.now();
+        if (now - lastRenderTime < renderDelay) {
+            setTimeout(() => onDataReceived(messageFromVA), renderDelay);
+        } else {
+            onDataReceived(messageFromVA);
+        }
+        lastRenderTime = now;
+    }
+
+    /*******************************************************
+     * FUNÇÃO DE PROCESSAMENTO DE DADOS (LÓGICA DO RADAR)
+     *******************************************************/
+    function onDataReceived(messageFromVA) {
+        vaMessage = messageFromVA;
+        VA_RESULT_NAME = messageFromVA.resultName;
+
+        if (isInSASVA() && typeof va !== 'undefined' && va.contentUtil) {
+            const expectedRoles = ["string", "number", "string", "number"];
+            if (!va.contentUtil.validateRoles(messageFromVA, expectedRoles, false)) {
+                if (va.messagingUtil) {
+                    va.messagingUtil.postInstructionalMessage(VA_RESULT_NAME,
+                        "O Card KPI com Lógica de Proporção espera as colunas nesta ordem:\n" +
+                        " 1. Métrica (string) - Nome do KPI\n" +
+                        " 2. Período (número) - Ex: Ano\n" +
+                        " 3. Resposta (string) - Categoria 'Sim'/'Não'\n" +
+                        " 4. Valor (número) - A contagem/frequência"
+                    );
+                }
+                return;
+            }
+        }
+
+        if (!messageFromVA.data || messageFromVA.data.length === 0) {
+            processedData = null;
+            d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
+            return;
+        }
+
+        // ** LÓGICA DE CÁLCULO ATUALIZADA (d3.nest -> d3.group) **
+        const columns = messageFromVA.columns;
+        const allData = messageFromVA.data;
+        const titulo = allData[0][0];
+
+        // 1. Agrega os dados brutos por período (Ano) usando d3.group
+        const aggregatedByPeriod = d3.group(allData, d => d[1]); // Agrupa pelo Período (Ano)
+
+        // 2. Calcula a proporção de "Sim" para cada período
+        const timeSeriesData = Array.from(aggregatedByPeriod, ([period, values]) => {
+            const totalValue = d3.sum(values, d => d[3]);
+            const simValue = d3.sum(values.filter(d => d[2] === POSITIVE_ANSWER), d => d[3]);
+            const proportion = totalValue > 0 ? simValue / totalValue : 0;
+            return {
+                periodo: +period, // Converte para número
+                valor: proportion // O valor agora é a proporção (ex: 0.85)
+            };
+        }).sort((a, b) => a.periodo - b.periodo); // Garante a ordem cronológica
+        
+        // ** FIM DA LÓGICA ATUALIZADA **
+
+        const valores = timeSeriesData.map(d => d.valor);
+        const ultimoValor = valores[valores.length - 1];
+        const primeiroValor = valores[0];
+        const penultimoValor = valores.length > 1 ? valores[valores.length - 2] : null;
+
+        let variacaoPeriodo = (ultimoValor - primeiroValor) * 100;
+        let variacaoAnterior = penultimoValor !== null ? (ultimoValor - penultimoValor) * 100 : 0;
+
+        let mediaAnual = 0;
+        if (valores.length > 1) {
+            const variacoesAnuais = [];
+            for (let i = 1; i < valores.length; i++) {
+                variacoesAnuais.push((valores[i] - valores[i-1]) * 100);
+            }
+            mediaAnual = d3.mean(variacoesAnuais) || 0;
+        }
+
+        processedData = {
+            titulo: titulo,
+            columnLabels: {
+                period: columns[1].label,
+                value: columns[0].label
+            },
+            valorPrincipal: {
+                label: "Variação no Período",
+                value: variacaoPeriodo,
+                format: val => `${d3.format("+.1f")(val)} p.p.`
+            },
+            valorSecundario: {
+                label: "Variação vs Ano Anterior",
+                value: variacaoAnterior,
+                format: val => `${d3.format("+.1f")(val)} p.p.`
+            },
+            valorTerciario: {
+                label: "Média Anual",
+                value: mediaAnual,
+                format: val => `${d3.format("+.1f")(val)} p.p.`
+            },
+            serieTemporal: {
+                dados: timeSeriesData,
+                valores: valores,
+                periodos: timeSeriesData.map(d => d.periodo.toString()),
+                label: columns[0].label
+            }
+        };
+
+        renderCard();
+    }
+
+    /*******************************************************
+     * FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO
+     *******************************************************/
+    function renderCard() {
+        if (!processedData) return;
+        
+        const width = document.body.clientWidth;
+        const height = document.body.clientHeight;
+        const isCompactHorizontal = (width / height) > 2.5;
+        
+        d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
+
+        svg = d3.select("#" + SVG_CONTAINER_ID).append("svg").attr("width", width).attr("height", height);
+        
+        const defs = svg.append("defs");
+        const gradient = defs.append("linearGradient").attr("id", "cardGradient").attr("x1", "0%").attr("y1", "0%").attr("x2", "100%").attr("y2", "100%");
+        gradient.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff");
+        gradient.append("stop").attr("offset", "100%").attr("stop-color", "#4CAF50");
+
+        svg.append("rect").attr("width", width).attr("height", height).attr("rx", 8).attr("fill", "url(#cardGradient)").attr("stroke", "#d0d0d0").attr("stroke-width", 1);
+
+        mainGroup = svg.append("g");
+        
+        const padding = Math.max(width * 0.015, 8);
+        const contentWidth = width - (padding * 2);
+        
+        let titleFontSize, labelFontSize, valueFontSize, titleHeight;
+        
+        if (isCompactHorizontal) {
+            titleFontSize = Math.min(Math.max(height * 0.1, 12), 16);
+            labelFontSize = Math.min(Math.max(height * 0.12, 10), 16);
+            valueFontSize = Math.min(Math.max(height * 0.16, 12), 20);
+            titleHeight = Math.max(height * 0.18, 25);
+        } else {
+            titleFontSize = Math.min(Math.max(height * 0.07, 16), width * 0.045, 24);
+            labelFontSize = Math.min(Math.max(height * 0.07, 16), width * 0.04, 24);
+            valueFontSize = Math.min(Math.max(height * 0.09, 20), width * 0.05, 30);
+            titleHeight = Math.max(height * 0.12, 45);
+        }
+
+        const contentSectionHeight = height - titleHeight - padding;
+        
+        let chartWidthRatio = isCompactHorizontal ? 0.72 : 0.75;
+        
+        const chartWidth = Math.max(contentWidth * chartWidthRatio, 180);
+        const variationsWidth = contentWidth - chartWidth - padding;
+
+        mainGroup.append("text").attr("class", "title-text").attr("x", width / 2).attr("y", padding + titleFontSize * 0.8).attr("font-size", titleFontSize + "px").text(processedData.titulo);
+
+        const chartY = titleHeight;
+        const chartGroup = mainGroup.append("g").attr("transform", `translate(${padding}, ${chartY})`);
+        
+        const { valores, dados } = processedData.serieTemporal;
+        
+        if (valores.length > 0) {
+            const minVal = d3.min(valores);
+            const maxVal = d3.max(valores);
+            const range = maxVal - minVal || 1;
+            
+            const innerChartPadding = Math.max(chartWidth * 0.04, 10);
+            const innerWidth = chartWidth - (innerChartPadding * 2);
+            const chartHeight = Math.max(contentSectionHeight * 0.75, 80);
+            const innerHeight = chartHeight - (innerChartPadding * 2);
+            
+            const lineData = dados.map((d, i) => {
+                const x = innerChartPadding + (innerWidth / Math.max(dados.length - 1, 1)) * i;
+                const normalizedY = range > 0 ? (d.valor - minVal) / range : 0.5;
+                return { x, y: innerChartPadding + innerHeight * (1 - normalizedY), value: d.valor, period: d.periodo };
+            });
+
+            const line = d3.line().x(d => d.x).y(d => d.y).curve(d3.curveMonotoneX);
+            const strokeWidth = isCompactHorizontal ? Math.min(Math.max(height * 0.02, 2), 5) : Math.min(Math.max(width * 0.008, 3), 8);
+
+            chartGroup.append("path").datum(lineData).attr("d", line).attr("stroke", "#1A9850").attr("stroke-width", strokeWidth).attr("fill", "none").attr("stroke-linecap", "round");
+
+            const pointRadius = isCompactHorizontal ? Math.min(Math.max(height * 0.015, 2), 4) : Math.min(Math.max(width * 0.005, 3), 7);
+            
+            chartGroup.selectAll(".data-point").data(lineData).enter().append("circle").attr("class", "data-point")
+                .attr("cx", d => d.x).attr("cy", d => d.y).attr("r", pointRadius)
+                .attr("fill", "#1A9850").attr("stroke", "#ffffff").attr("stroke-width", Math.max(pointRadius * 0.3, 1))
+                .style("cursor", "pointer")
+                .on("mouseenter", function(event, d) {
+                    d3.select(this).transition().duration(150).attr("r", pointRadius * 1.4);
+                    showTooltip(event, d);
+                })
+                .on("mouseleave", function() {
+                    d3.select(this).transition().duration(150).attr("r", pointRadius);
+                    hideTooltip();
+                })
+                .on("mousemove", showTooltip);
+
+            const yearLabelFontSize = isCompactHorizontal ? Math.min(Math.max(height * 0.08, 7), 12) : Math.min(Math.max(height * 0.04, 10), width * 0.025, 15);
+            
+            chartGroup.selectAll(".value-label").data(lineData).enter().append("text").attr("class", "value-label")
+                .attr("x", d => d.x).attr("y", d => d.y - Math.max(8, height * 0.015))
+                .attr("font-size", yearLabelFontSize + "px").attr("fill", "#1a4f0e").attr("text-anchor", "middle").attr("font-weight", "700")
+                .text(d => d3.format(".1%")(d.value));
+            
+            chartGroup.selectAll(".year-label").data(lineData).enter().append("text").attr("class", "year-label")
+                .attr("x", d => d.x).attr("y", chartHeight + Math.max(12, height * 0.02))
+                .attr("font-size", yearLabelFontSize + "px").attr("fill", "#2d5016").attr("text-anchor", "middle").attr("font-weight", "600")
+                .text(d => d.period);
+        }
+
+        const separatorX = padding + chartWidth + (padding / 2);
+        mainGroup.append("line").attr("x1", separatorX).attr("y1", chartY).attr("x2", separatorX).attr("y2", chartY + contentSectionHeight).attr("stroke", "rgba(45,80,22,0.3)").attr("stroke-width", 1);
+
+        const variationsX = separatorX + (padding / 2);
+        const variationsGroup = mainGroup.append("g").attr("transform", `translate(${variationsX}, ${chartY})`);
+        
+        const availableVariationsHeight = contentSectionHeight * 0.9;
+        const variationBlockHeight = availableVariationsHeight / 3;
+        const variationStartY = contentSectionHeight * 0.05;
+        const labelValueSpacing = isCompactHorizontal ? Math.max(variationBlockHeight * 0.45, 12) : Math.max(variationBlockHeight * 0.35, 20);
+        const variationCenterX = variationsWidth / 2;
+
+        const variations = [processedData.valorPrincipal, processedData.valorSecundario, processedData.valorTerciario];
+        variations.forEach((variation, i) => {
+            const yPos = variationStartY + (i * variationBlockHeight);
+            variationsGroup.append("text").attr("class", "secondary-label-text").attr("x", variationCenterX).attr("y", yPos).attr("font-size", labelFontSize + "px").text(variation.label);
+            variationsGroup.append("text").attr("class", "secondary-value-text").attr("x", variationCenterX).attr("y", yPos + labelValueSpacing).attr("font-size", valueFontSize + "px").text(variation.format(variation.value));
+        });
+    }
+}
+</script>
+</body>
+</html>
