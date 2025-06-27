@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-VERSÃO SIMPLIFICADA E FINAL
+VERSÃO FINAL SIMPLIFICADA E CORRIGIDA
 - Lógica de parâmetro COMPLETAMENTE REMOVIDA.
 - O card tem um comportamento único e previsível: calcula sempre a proporção.
 - Pré-filtra os dados com base em uma 5ª coluna de "flag de tipo".
@@ -379,7 +379,7 @@ function initializeKPICard() {
         const availableVariationsHeight = contentSectionHeight * 0.9;
         const variationBlockHeight = availableVariationsHeight / 3;
         const variationStartY = contentSectionHeight * 0.05;
-        const labelValueSpacing = isCompactHorizontal ? Math.max(variationBlockHeight * 0.45, 12) : Math.max(variationBlockHeight * 0.35, 20);
+        const labelValueSpacing = isCompactHorizontal ? Math.max(variationBlockHeight * 0.45, 12) : Math.min(variationBlockHeight * 0.35, 20);
         const variationCenterX = variationsWidth / 2;
 
         const variations = [processedData.valorPrincipal, processedData.valorSecundario, processedData.valorTerciario];
