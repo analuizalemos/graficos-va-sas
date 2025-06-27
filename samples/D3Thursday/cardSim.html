@@ -4,6 +4,8 @@ Adaptado para SAS Visual Analytics.
 Lógica de cálculo de proporção baseada no gráfico de radar anterior.
 Mantém as métricas de variação do card, mas aplicadas sobre os percentuais calculados.
 CORREÇÃO: Substituído d3.nest() por d3.group() para compatibilidade com D3.js v7+.
+MODIFICAÇÃO: Gráfico de linha agora mostra valores absolutos com formatação compacta.
+ATUALIZAÇÃO: Formatação de números ajustada para o padrão brasileiro, usando "mil".
 -->
 <html>
 <head>
@@ -125,17 +127,56 @@ function initializeKPICard() {
     const renderDelay = 250;
     let svg, mainGroup;
     const tooltip = d3.select("#tooltip");
-    const POSITIVE_ANSWER = "Sim"; // Define o valor positivo para o cálculo da proporção
+    const POSITIVE_ANSWER = "Sim";
+
+    /*******************************************************
+     * FUNÇÕES DE FORMATAÇÃO
+     *******************************************************/
+    
+    // Define o locale para Português (Brasil) para usar o ponto como separador de milhares
+    d3.formatDefaultLocale({
+      "decimal": ",",
+      "thousands": ".",
+      "grouping": [3],
+      "currency": ["R$", " "]
+    });
+
+    // ** LÓGICA DE FORMATAÇÃO ATUALIZADA **
+    // Formata os valores do gráfico para serem compactos, usando "mil" para milhares.
+    function formatChartLabel(value) {
+        if (value >= 1000000000) {
+            return d3.format(",.1f")(value / 1000000000) + ' bi';
+        }
+        if (value >= 1000000) {
+            return d3.format(",.1f")(value / 1000000) + ' mi';
+        }
+        if (value >= 1000) {
+            return d3.format(",.0f")(Math.floor(value / 1000)) + " mil";
+        }
+        // Para valores menores que 1000, mostra o número completo.
+        return d3.format(",.0f")(value);
+    }
+    
+    // Formata valores para o tooltip (mostra número completo até certo ponto)
+    function formatValueForTooltip(value) {
+        if (value >= 1000000) return formatChartLabel(value); // Mantém a abreviação para números muito grandes
+        return d3.format(",")(Math.round(value)); // Mostra o número completo para os outros
+    }
 
     /*******************************************************
      * FUNÇÕES DO TOOLTIP
      *******************************************************/
     function showTooltip(event, data) {
         const periodLabel = processedData.columnLabels.period || "Período";
-        const valueLabel = processedData.columnLabels.value || "Proporção"; // Agora é uma proporção
-        const formattedValue = d3.format(".1%")(data.value); // Formata como percentual
+        const metricLabel = processedData.columnLabels.value || "Métrica";
+        const valueLabel = processedData.columnLabels.absoluteValue || "Valor Absoluto";
+
+        const formattedProportion = d3.format(".1%")(data.proportionalValue);
+        const formattedAbsolute = formatValueForTooltip(data.absoluteValue);
         
-        const tooltipContent = `${periodLabel}: ${data.period}<br/>${valueLabel}: ${formattedValue}`;
+        const tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
+                             `${metricLabel}: ${formattedProportion}<br/>` + 
+                             `${valueLabel}: ${formattedAbsolute}`;
         
         tooltip
             .style("display", "block")
@@ -153,17 +194,15 @@ function initializeKPICard() {
      *******************************************************/
     const SAMPLE_MESSAGE = {
         resultName: "kpiCardProportionSample",
-        rowCount: 6,
         data: [
-            // [Título, Ano, Resposta, Valor]
-            ["Taxa de Acesso à Internet", 2021, "Sim", 80],
-            ["Taxa de Acesso à Internet", 2021, "Não", 20],
-            ["Taxa de Acesso à Internet", 2022, "Sim", 85],
-            ["Taxa de Acesso à Internet", 2022, "Não", 15],
-            ["Taxa de Acesso à Internet", 2023, "Sim", 82],
-            ["Taxa de Acesso à Internet", 2023, "Não", 18],
-            ["Taxa de Acesso à Internet", 2024, "Sim", 90],
-            ["Taxa de Acesso à Internet", 2024, "Não", 10],
+            ["Taxa de Acesso à Internet", 2021, "Sim", 80000],
+            ["Taxa de Acesso à Internet", 2021, "Não", 20000],
+            ["Taxa de Acesso à Internet", 2022, "Sim", 85000],
+            ["Taxa de Acesso à Internet", 2022, "Não", 15000],
+            ["Taxa de Acesso à Internet", 2023, "Sim", 820000],
+            ["Taxa de Acesso à Internet", 2023, "Não", 180000],
+            ["Taxa de Acesso à Internet", 2024, "Sim", 1900000],
+            ["Taxa de Acesso à Internet", 2024, "Não", 100000],
         ],
         columns: [
             { label: "Métrica", type: "string" },
@@ -207,68 +246,48 @@ function initializeKPICard() {
     }
 
     /*******************************************************
-     * FUNÇÃO DE PROCESSAMENTO DE DADOS (LÓGICA DO RADAR)
+     * FUNÇÃO DE PROCESSAMENTO DE DADOS
      *******************************************************/
     function onDataReceived(messageFromVA) {
         vaMessage = messageFromVA;
         VA_RESULT_NAME = messageFromVA.resultName;
-
-        if (isInSASVA() && typeof va !== 'undefined' && va.contentUtil) {
-            const expectedRoles = ["string", "number", "string", "number"];
-            if (!va.contentUtil.validateRoles(messageFromVA, expectedRoles, false)) {
-                if (va.messagingUtil) {
-                    va.messagingUtil.postInstructionalMessage(VA_RESULT_NAME,
-                        "O Card KPI com Lógica de Proporção espera as colunas nesta ordem:\n" +
-                        " 1. Métrica (string) - Nome do KPI\n" +
-                        " 2. Período (número) - Ex: Ano\n" +
-                        " 3. Resposta (string) - Categoria 'Sim'/'Não'\n" +
-                        " 4. Valor (número) - A contagem/frequência"
-                    );
-                }
-                return;
-            }
-        }
-
+        
         if (!messageFromVA.data || messageFromVA.data.length === 0) {
             processedData = null;
             d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
             return;
         }
 
-        // ** LÓGICA DE CÁLCULO ATUALIZADA (d3.nest -> d3.group) **
         const columns = messageFromVA.columns;
         const allData = messageFromVA.data;
         const titulo = allData[0][0];
 
-        // 1. Agrega os dados brutos por período (Ano) usando d3.group
-        const aggregatedByPeriod = d3.group(allData, d => d[1]); // Agrupa pelo Período (Ano)
+        const aggregatedByPeriod = d3.group(allData, d => d[1]);
 
-        // 2. Calcula a proporção de "Sim" para cada período
-        const timeSeriesData = Array.from(aggregatedByPeriod, ([period, values]) => {
+        const calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
             const totalValue = d3.sum(values, d => d[3]);
             const simValue = d3.sum(values.filter(d => d[2] === POSITIVE_ANSWER), d => d[3]);
             const proportion = totalValue > 0 ? simValue / totalValue : 0;
             return {
-                periodo: +period, // Converte para número
-                valor: proportion // O valor agora é a proporção (ex: 0.85)
+                periodo: +period,
+                proportionalValue: proportion,
+                absoluteValue: simValue 
             };
-        }).sort((a, b) => a.periodo - b.periodo); // Garante a ordem cronológica
+        }).sort((a, b) => a.periodo - b.periodo);
         
-        // ** FIM DA LÓGICA ATUALIZADA **
+        const proportionalValues = calculatedData.map(d => d.proportionalValue);
+        const ultimoValorProp = proportionalValues[proportionalValues.length - 1];
+        const primeiroValorProp = proportionalValues[0];
+        const penultimoValorProp = proportionalValues.length > 1 ? proportionalValues[proportionalValues.length - 2] : null;
 
-        const valores = timeSeriesData.map(d => d.valor);
-        const ultimoValor = valores[valores.length - 1];
-        const primeiroValor = valores[0];
-        const penultimoValor = valores.length > 1 ? valores[valores.length - 2] : null;
-
-        let variacaoPeriodo = (ultimoValor - primeiroValor) * 100;
-        let variacaoAnterior = penultimoValor !== null ? (ultimoValor - penultimoValor) * 100 : 0;
+        let variacaoPeriodo = (ultimoValorProp - primeiroValorProp) * 100;
+        let variacaoAnterior = penultimoValorProp !== null ? (ultimoValorProp - penultimoValorProp) * 100 : 0;
 
         let mediaAnual = 0;
-        if (valores.length > 1) {
+        if (proportionalValues.length > 1) {
             const variacoesAnuais = [];
-            for (let i = 1; i < valores.length; i++) {
-                variacoesAnuais.push((valores[i] - valores[i-1]) * 100);
+            for (let i = 1; i < proportionalValues.length; i++) {
+                variacoesAnuais.push((proportionalValues[i] - proportionalValues[i-1]) * 100);
             }
             mediaAnual = d3.mean(variacoesAnuais) || 0;
         }
@@ -277,7 +296,8 @@ function initializeKPICard() {
             titulo: titulo,
             columnLabels: {
                 period: columns[1].label,
-                value: columns[0].label
+                value: columns[0].label,
+                absoluteValue: columns[3].label
             },
             valorPrincipal: {
                 label: "Variação no Período",
@@ -295,9 +315,7 @@ function initializeKPICard() {
                 format: val => `${d3.format("+.1f")(val)} p.p.`
             },
             serieTemporal: {
-                dados: timeSeriesData,
-                valores: valores,
-                periodos: timeSeriesData.map(d => d.periodo.toString()),
+                dados: calculatedData,
                 label: columns[0].label
             }
         };
@@ -357,11 +375,12 @@ function initializeKPICard() {
         const chartY = titleHeight;
         const chartGroup = mainGroup.append("g").attr("transform", `translate(${padding}, ${chartY})`);
         
-        const { valores, dados } = processedData.serieTemporal;
+        const { dados } = processedData.serieTemporal;
+        const absoluteValues = dados.map(d => d.absoluteValue);
         
-        if (valores.length > 0) {
-            const minVal = d3.min(valores);
-            const maxVal = d3.max(valores);
+        if (absoluteValues.length > 0) {
+            const minVal = d3.min(absoluteValues);
+            const maxVal = d3.max(absoluteValues);
             const range = maxVal - minVal || 1;
             
             const innerChartPadding = Math.max(chartWidth * 0.04, 10);
@@ -371,8 +390,14 @@ function initializeKPICard() {
             
             const lineData = dados.map((d, i) => {
                 const x = innerChartPadding + (innerWidth / Math.max(dados.length - 1, 1)) * i;
-                const normalizedY = range > 0 ? (d.valor - minVal) / range : 0.5;
-                return { x, y: innerChartPadding + innerHeight * (1 - normalizedY), value: d.valor, period: d.periodo };
+                const normalizedY = range > 0 ? (d.absoluteValue - minVal) / range : 0.5;
+                return { 
+                    x, 
+                    y: innerChartPadding + innerHeight * (1 - normalizedY), 
+                    absoluteValue: d.absoluteValue, 
+                    proportionalValue: d.proportionalValue,
+                    period: d.periodo 
+                };
             });
 
             const line = d3.line().x(d => d.x).y(d => d.y).curve(d3.curveMonotoneX);
@@ -401,7 +426,7 @@ function initializeKPICard() {
             chartGroup.selectAll(".value-label").data(lineData).enter().append("text").attr("class", "value-label")
                 .attr("x", d => d.x).attr("y", d => d.y - Math.max(8, height * 0.015))
                 .attr("font-size", yearLabelFontSize + "px").attr("fill", "#1a4f0e").attr("text-anchor", "middle").attr("font-weight", "700")
-                .text(d => d3.format(".1%")(d.value));
+                .text(d => formatChartLabel(d.absoluteValue));
             
             chartGroup.selectAll(".year-label").data(lineData).enter().append("text").attr("class", "year-label")
                 .attr("x", d => d.x).attr("y", chartHeight + Math.max(12, height * 0.02))
