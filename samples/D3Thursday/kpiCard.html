@@ -4,11 +4,12 @@ Adaptado para SAS Visual Analytics.
 Lógica de cálculo de proporção baseada na contagem distinta de um ID.
 Mantém as métricas de variação do card, mas aplicadas sobre os percentuais calculados.
 MODIFICAÇÃO: Gráfico de linha mostra a contagem distinta, com formatação para o padrão brasileiro.
+ATUALIZAÇÃO: Tooltip ajustado para mostrar um rótulo de contagem mais claro.
 -->
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>KPI Card com Contagem Distinta para SAS VA</title>
+    <title>KPI Card Condicional para SAS VA</title>
     <!-- Import D3.js -->
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
@@ -115,9 +116,11 @@ document.addEventListener("DOMContentLoaded", function() {
 
 function initializeKPICard() {
     /*******************************************************
-     * DECLARAÇÃO DE VARIÁVEIS
+     * DECLARAÇÃO DE VARIÁVEIS E CONFIGURAÇÕES
      *******************************************************/
     const SVG_CONTAINER_ID = "chart-container";
+    const CHARACTERISTIC_PARAMETER_NAME = 'seuParametroAqui'; // Substitua pelo nome exato do seu parâmetro
+
     let VA_RESULT_NAME;
     let vaMessage;
     let processedData;
@@ -151,16 +154,24 @@ function initializeKPICard() {
      * FUNÇÕES DO TOOLTIP
      *******************************************************/
     function showTooltip(event, data) {
-        const periodLabel = processedData.columnLabels.period || "Período";
-        const metricLabel = processedData.columnLabels.metric || "Métrica";
-        const valueLabel = processedData.columnLabels.id || "Contagem Distinta";
-
-        const formattedProportion = d3.format(".1%")(data.proportionalValue);
+        const periodLabel = processedData.columnLabels.period;
+        const metricLabel = processedData.columnLabels.metric;
+        const countLabel = "Nº de Escolas"; // Rótulo estático e claro para a contagem
         const formattedAbsolute = formatValueForTooltip(data.absoluteValue);
+
+        let tooltipContent;
         
-        const tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
+        // Se estivermos no modo proporcional (filtro ativo)
+        if (processedData.isProportional) {
+            const formattedProportion = d3.format(".1%")(data.proportionalValue);
+            tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
                              `${metricLabel}: ${formattedProportion}<br/>` + 
-                             `${valueLabel}: ${formattedAbsolute}`;
+                             `${countLabel} (Sim): ${formattedAbsolute}`;
+        } else {
+            // Modo absoluto (sem filtro)
+            tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
+                             `${countLabel} (Total): ${formattedAbsolute}`;
+        }
         
         tooltip
             .style("display", "block")
@@ -179,20 +190,15 @@ function initializeKPICard() {
     const SAMPLE_MESSAGE = {
         resultName: "kpiCardDistinctCountSample",
         data: [
-            // [Métrica, Ano, Resposta, ID da Escola]
-            ["Escolas com Internet", 2021, "Sim", 101],
-            ["Escolas com Internet", 2021, "Sim", 102],
-            ["Escolas com Internet", 2021, "Não", 103],
-            ["Escolas com Internet", 2022, "Sim", 101], // ID 101 se repete
-            ["Escolas com Internet", 2022, "Não", 102],
-            ["Escolas com Internet", 2022, "Sim", 104],
-            ["Escolas com Internet", 2022, "Sim", 105],
+            ["Escolas (total)", 2021, "Sim", 101], ["Escolas (total)", 2021, "Não", 103],
+            ["Escolas (total)", 2022, "Sim", 101], ["Escolas (total)", 2022, "Sim", 104], ["Escolas (total)", 2022, "Não", 102],
         ],
+        parameters: { [CHARACTERISTIC_PARAMETER_NAME]: null }, 
         columns: [
             { label: "Métrica", type: "string" },
             { label: "Ano", type: "number" },
             { label: "Resposta", type: "string" },
-            { label: "ID da Escola", type: "number" } // Nova coluna de ID
+            { label: "ID da Escola", type: "any" }
         ]
     };
 
@@ -236,63 +242,73 @@ function initializeKPICard() {
         vaMessage = messageFromVA;
         VA_RESULT_NAME = messageFromVA.resultName;
         
-        if (!messageFromVA.data || messageFromVA.data.length === 0) {
+        if (!messageFromVA.data || messageFromVA.data.length === 0 || messageFromVA.columns.length < 4) {
+            d3.select("#chart-container").html(`<h1>Erro de Configuração</h1><p>São necessárias 4 colunas nesta ordem: Métrica, Ano, Resposta, ID.</p>`);
             processedData = null;
-            d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
             return;
         }
 
         const columns = messageFromVA.columns;
         const allData = messageFromVA.data;
-        const titulo = allData[0][0];
+        
+        const metricIndex = 0, periodIndex = 1, answerIndex = 2, idIndex = 3;
+        const titulo = allData[0][metricIndex];
 
-        // ** LÓGICA DE CONTagem distinta **
-        // Identifica as colunas pela ordem esperada.
-        const metricIndex = 0;
-        const periodIndex = 1;
-        const answerIndex = 2;
-        const idIndex = 3;
+        const characteristicFilterValue = (messageFromVA.parameters && messageFromVA.parameters[CHARACTERISTIC_PARAMETER_NAME]) 
+            ? messageFromVA.parameters[CHARACTERISTIC_PARAMETER_NAME].values[0] 
+            : null;
+        
+        const isProportionalMode = characteristicFilterValue !== null && characteristicFilterValue !== undefined;
 
         const aggregatedByPeriod = d3.group(allData, d => d[periodIndex]);
 
-        const calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
-            // Contagem distinta do TOTAL de IDs para o período
-            const totalUniqueIDs = new Set(values.map(d => d[idIndex]));
-            const totalCount = totalUniqueIDs.size;
-            
-            // Contagem distinta dos IDs com resposta "Sim"
-            const simValues = values.filter(d => d[answerIndex] === POSITIVE_ANSWER);
-            const simUniqueIDs = new Set(simValues.map(d => d[idIndex]));
-            const simCount = simUniqueIDs.size;
-            
-            const proportion = totalCount > 0 ? simCount / totalCount : 0;
-            
-            return {
-                periodo: +period,
-                proportionalValue: proportion, // Proporção baseada na contagem distinta
-                absoluteValue: simCount      // Valor absoluto é a contagem distinta de "Sim"
-            };
-        }).sort((a, b) => a.periodo - b.periodo);
+        let calculatedData;
+        let kpiValues;
+
+        if (isProportionalMode) {
+            calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
+                const totalUniqueIDs = new Set(values.map(d => d[idIndex]));
+                const totalCount = totalUniqueIDs.size;
+                const simValues = values.filter(d => d[answerIndex] === POSITIVE_ANSWER);
+                const simUniqueIDs = new Set(simValues.map(d => d[idIndex]));
+                const simCount = simUniqueIDs.size;
+                const proportion = totalCount > 0 ? simCount / totalCount : 0;
+                return { periodo: +period, proportionalValue: proportion, absoluteValue: simCount };
+            }).sort((a, b) => a.periodo - b.periodo);
+            kpiValues = calculatedData.map(d => d.proportionalValue);
+
+        } else {
+            calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
+                const totalUniqueIDs = new Set(values.map(d => d[idIndex]));
+                return { periodo: +period, absoluteValue: totalUniqueIDs.size };
+            }).sort((a, b) => a.periodo - b.periodo);
+            kpiValues = calculatedData.map(d => d.absoluteValue);
+        }
         
-        const proportionalValues = calculatedData.map(d => d.proportionalValue);
-        const ultimoValorProp = proportionalValues[proportionalValues.length - 1];
-        const primeiroValorProp = proportionalValues[0];
-        const penultimoValorProp = proportionalValues.length > 1 ? proportionalValues[proportionalValues.length - 2] : null;
+        const ultimoValor = kpiValues[kpiValues.length - 1];
+        const primeiroValor = kpiValues[0];
+        const penultimoValor = kpiValues.length > 1 ? kpiValues[kpiValues.length - 2] : null;
 
-        let variacaoPeriodo = (ultimoValorProp - primeiroValorProp) * 100;
-        let variacaoAnterior = penultimoValorProp !== null ? (ultimoValorProp - penultimoValorProp) * 100 : 0;
-
+        let variacaoPeriodo = (ultimoValor - primeiroValor);
+        let variacaoAnterior = penultimoValor !== null ? (ultimoValor - penultimoValor) : 0;
         let mediaAnual = 0;
-        if (proportionalValues.length > 1) {
+        if (kpiValues.length > 1) {
             const variacoesAnuais = [];
-            for (let i = 1; i < proportionalValues.length; i++) {
-                variacoesAnuais.push((proportionalValues[i] - proportionalValues[i-1]) * 100);
+            for (let i = 1; i < kpiValues.length; i++) {
+                variacoesAnuais.push(kpiValues[i] - kpiValues[i-1]);
             }
             mediaAnual = d3.mean(variacoesAnuais) || 0;
         }
 
+        if (isProportionalMode) {
+            variacaoPeriodo *= 100;
+            variacaoAnterior *= 100;
+            mediaAnual *= 100;
+        }
+
         processedData = {
             titulo: titulo,
+            isProportional: isProportionalMode,
             columnLabels: {
                 period: columns[periodIndex].label,
                 metric: columns[metricIndex].label,
@@ -301,23 +317,26 @@ function initializeKPICard() {
             valorPrincipal: {
                 label: "Variação no Período",
                 value: variacaoPeriodo,
-                format: val => `${d3.format("+.1f")(val)} p.p.`
+                format: val => isProportionalMode ? `${d3.format("+.1f")(val)} p.p.` : d3.format("+,.0f")(val)
             },
             valorSecundario: {
                 label: "Variação vs Ano Anterior",
                 value: variacaoAnterior,
-                format: val => `${d3.format("+.1f")(val)} p.p.`
+                format: val => isProportionalMode ? `${d3.format("+.1f")(val)} p.p.` : d3.format("+,.0f")(val)
             },
             valorTerciario: {
                 label: "Média Anual",
                 value: mediaAnual,
-                format: val => `${d3.format("+.1f")(val)} p.p.`
+                format: val => isProportionalMode ? `${d3.format("+.1f")(val)}` : d3.format("+,.0f")(val)
             },
             serieTemporal: {
                 dados: calculatedData,
                 label: columns[metricIndex].label
             }
         };
+        if(isProportionalMode) {
+          processedData.valorTerciario.format = val => `${d3.format("+.1f")(val)} p.p.`
+        }
 
         renderCard();
     }
