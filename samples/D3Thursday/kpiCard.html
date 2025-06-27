@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-VERSÃO FINAL SIMPLIFICADA E CORRIGIDA
+VERSÃO FINAL SIMPLIFICADA
 - Lógica de parâmetro COMPLETAMENTE REMOVIDA.
 - O card tem um comportamento único e previsível: calcula sempre a proporção.
 - Pré-filtra os dados com base em uma 5ª coluna de "flag de tipo".
@@ -239,10 +239,9 @@ function initializeKPICard() {
         }).sort((a, b) => a.periodo - b.periodo);
         
         const kpiValues = calculatedData.map(d => d.proportionalValue);
-        const kpiFormat = (val) => `${d3.format("+.1f")(val)} p.p.`;
         
-        if (kpiValues.length === 0) {
-           d3.select("#chart-container").html(`<h1>Sem dados para exibir</h1><p>Não há dados suficientes para os períodos selecionados.</p>`);
+        if (kpiValues.length < 2) {
+           d3.select("#chart-container").html(`<h1>Dados Insuficientes</h1><p>São necessários dados de pelo menos dois períodos para calcular as variações.</p>`);
            return;
         }
 
@@ -261,9 +260,9 @@ function initializeKPICard() {
                 metric: columns[metricIndex].label,
                 id: columns[idIndex].label
             },
-            valorPrincipal: { label: "Variação no Período", value: variacaoPeriodo, format: kpiFormat },
-            valorSecundario: { label: "Variação vs Ano Anterior", value: variacaoAnterior, format: kpiFormat },
-            valorTerciario: { label: "Média Anual", value: mediaAnual, format: kpiFormat },
+            valorPrincipal: { label: "Variação no Período", value: variacaoPeriodo, format: (val) => `${d3.format("+.1f")(val)} p.p.` },
+            valorSecundario: { label: "Variação vs Ano Anterior", value: variacaoAnterior, format: (val) => `${d3.format("+.1f")(val)} p.p.` },
+            valorTerciario: { label: "Média Anual", value: mediaAnual, format: (val) => `${d3.format("+.1f")(val)} p.p.` },
             serieTemporal: { dados: calculatedData }
         };
 
