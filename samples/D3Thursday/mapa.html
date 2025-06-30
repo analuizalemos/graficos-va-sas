@@ -172,6 +172,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   d3.json(GEOJSON_STATES_URL).then(function(json) {
       BRAZIL_STATES_JSON = json;
+      console.log("Brazil GeoJSON loaded successfully.");
       if (DATA) init();
   }).catch(function(error) {
       d3.select(".loading").text("Erro ao carregar o mapa do Brasil.");
@@ -182,6 +183,7 @@ document.addEventListener("DOMContentLoaded", function() {
       va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
       va.contentUtil.setupResizeListener(init);
   } else {
+      console.log("Running outside SAS VA, using sample data.");
       setTimeout(() => onDataReceived(SAMPLE_MESSAGE), 500);
       window.addEventListener("resize", init);
   }
@@ -197,6 +199,7 @@ document.addEventListener("DOMContentLoaded", function() {
           DATA[row[0]] = { id: row[0], measure: +row[1] };
       }
     });
+    console.log("Data received and processed:", DATA);
     
     METADATA = {
       measureLabel: messageFromVA.columns[1].label,
@@ -226,7 +229,6 @@ document.addEventListener("DOMContentLoaded", function() {
     const height = rect.height;
 
     if (width <= 0 || height <= 0) {
-        console.warn("Container has invalid dimensions. Retrying...");
         setTimeout(init, 100);
         return;
     }
@@ -250,7 +252,7 @@ document.addEventListener("DOMContentLoaded", function() {
     } else {
         g.selectAll(".estado")
           .transition().duration(500)
-          .attr("fill", d => {
+          .attr("fill", function(d) {
             const stateData = DATA[d.properties.SIGLA_UF];
             return stateData ? COLOR_SCALE(stateData.measure) : "#CCC";
           });
@@ -272,14 +274,14 @@ document.addEventListener("DOMContentLoaded", function() {
       .enter().append("path")
       .attr("class", "geo-path estado")
       .attr("d", PATH_GENERATOR)
-      .attr("fill", d => {
+      .attr("fill", function(d) {
         const stateData = DATA[d.properties.SIGLA_UF];
         return stateData ? COLOR_SCALE(stateData.measure) : "#CCC";
       })
-      .on("mouseover", function(d) { handleMouseOver(d, "estado"); })
+      .on("mouseover", function() { handleMouseOver(d3.select(this).datum(), "estado"); })
       .on("mousemove", function() { handleMouseMove(d3.event); })
       .on("mouseout", function() { handleMouseOut(); })
-      .on("click", function(d) { handleStateClick(d); });
+      .on("click", function() { handleStateClick(d3.select(this).datum()); });
   }
 
   function handleStateClick(d) {
@@ -304,7 +306,7 @@ document.addEventListener("DOMContentLoaded", function() {
           .enter().append("path")
           .attr("class", "geo-path municipio")
           .attr("d", PATH_GENERATOR)
-          .on("mouseover", function(d_mun) { handleMouseOver(d_mun, "municipio"); })
+          .on("mouseover", function() { handleMouseOver(d3.select(this).datum(), "municipio"); })
           .on("mousemove", function() { handleMouseMove(d3.event); })
           .on("mouseout", function() { handleMouseOut(); });
     }).catch(error => {
@@ -316,6 +318,7 @@ document.addEventListener("DOMContentLoaded", function() {
   /******************************************************* Helper Functions *******************************************************/
 
   function handleMouseOver(d, type) {
+    if (!d || !d.properties) return;
     TOOLTIP.style("display", "block");
     if (type === "estado") {
         const stateData = DATA[d.properties.SIGLA_UF];
@@ -334,6 +337,7 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   function handleMouseMove(event) {
+      if (!event) return;
       TOOLTIP.style("left", (event.pageX + 15) + "px")
              .style("top", (event.pageY - 15) + "px");
   }
@@ -346,10 +350,6 @@ document.addEventListener("DOMContentLoaded", function() {
     d3.select(".leg-min").html(METADATA.measureFormat(COLOR_SCALE.domain()[0]));
     d3.select(".leg-grad").attr("style", `width: ${LEG_GRAD_WIDTH}px; height: ${LEG_GRAD_HEIGHT}px; background-image: linear-gradient(to right, ${COLOR_SCALE.range()[0]}, ${COLOR_SCALE.range()[1]}); margin: 0 5px;`);
     d3.select(".leg-max").html(METADATA.measureFormat(COLOR_SCALE.domain()[1]));
-  }
-
-  function inIframe() {
-    try { return window.self !== window.top; } catch (e) { return true; }
   }
 });
 </script>
