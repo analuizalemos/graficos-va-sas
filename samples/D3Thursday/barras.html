@@ -163,204 +163,55 @@ function initializeBarChart() {
         const percentualMinimoDinamico = d3.min(values);
         const percentualMaximoDinamico = d3.max(values);
         
-        console.log("=== CÁLCULOS BASE ===");
-        console.log("Percentual Mínimo Dinâmico:", percentualMinimoDinamico);
-        console.log("Percentual Máximo Dinâmico:", percentualMaximoDinamico);
-        
-        // 1. C_Intervalo_Total
-        // Expressão: 'Percentual Máximo Dinâmico'n - 'Percentual Mínimo Dinâmico'n
         const C_Intervalo_Total = percentualMaximoDinamico - percentualMinimoDinamico;
-        console.log("1. C_Intervalo_Total:", C_Intervalo_Total);
-        
-        // 2. C_Tamanho_Faixa
-        // Expressão: 'C_Intervalo_Total'n / 15
         const C_Tamanho_Faixa = C_Intervalo_Total / 15;
-        console.log("2. C_Tamanho_Faixa:", C_Tamanho_Faixa);
         
-        console.log("=== 14 LIMITES DE FAIXA ===");
-        
-        // 3. C_Limite_01
-        // Expressão: 'Percentual Mínimo Dinâmico'n + 'C_Tamanho_Faixa'n
         const C_Limite_01 = percentualMinimoDinamico + C_Tamanho_Faixa;
-        console.log("3. C_Limite_01:", C_Limite_01);
-        
-        // 4. C_Limite_02
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (2 * 'C_Tamanho_Faixa'n)
         const C_Limite_02 = percentualMinimoDinamico + (2 * C_Tamanho_Faixa);
-        console.log("4. C_Limite_02:", C_Limite_02);
-        
-        // 5. C_Limite_03
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (3 * 'C_Tamanho_Faixa'n)
         const C_Limite_03 = percentualMinimoDinamico + (3 * C_Tamanho_Faixa);
-        console.log("5. C_Limite_03:", C_Limite_03);
-        
-        // 6. C_Limite_04
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (4 * 'C_Tamanho_Faixa'n)
         const C_Limite_04 = percentualMinimoDinamico + (4 * C_Tamanho_Faixa);
-        console.log("6. C_Limite_04:", C_Limite_04);
-        
-        // 7. C_Limite_05
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (5 * 'C_Tamanho_Faixa'n)
         const C_Limite_05 = percentualMinimoDinamico + (5 * C_Tamanho_Faixa);
-        console.log("7. C_Limite_05:", C_Limite_05);
-        
-        // 8. C_Limite_06
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (6 * 'C_Tamanho_Faixa'n)
         const C_Limite_06 = percentualMinimoDinamico + (6 * C_Tamanho_Faixa);
-        console.log("8. C_Limite_06:", C_Limite_06);
-        
-        // 9. C_Limite_07
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (7 * 'C_Tamanho_Faixa'n)
         const C_Limite_07 = percentualMinimoDinamico + (7 * C_Tamanho_Faixa);
-        console.log("9. C_Limite_07:", C_Limite_07);
-        
-        // 10. C_Limite_08
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (8 * 'C_Tamanho_Faixa'n)
         const C_Limite_08 = percentualMinimoDinamico + (8 * C_Tamanho_Faixa);
-        console.log("10. C_Limite_08:", C_Limite_08);
-        
-        // 11. C_Limite_09
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (9 * 'C_Tamanho_Faixa'n)
         const C_Limite_09 = percentualMinimoDinamico + (9 * C_Tamanho_Faixa);
-        console.log("11. C_Limite_09:", C_Limite_09);
-        
-        // 12. C_Limite_10
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (10 * 'C_Tamanho_Faixa'n)
         const C_Limite_10 = percentualMinimoDinamico + (10 * C_Tamanho_Faixa);
-        console.log("12. C_Limite_10:", C_Limite_10);
-        
-        // 13. C_Limite_11
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (11 * 'C_Tamanho_Faixa'n)
         const C_Limite_11 = percentualMinimoDinamico + (11 * C_Tamanho_Faixa);
-        console.log("13. C_Limite_11:", C_Limite_11);
-        
-        // 14. C_Limite_12
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (12 * 'C_Tamanho_Faixa'n)
         const C_Limite_12 = percentualMinimoDinamico + (12 * C_Tamanho_Faixa);
-        console.log("14. C_Limite_12:", C_Limite_12);
-        
-        // 15. C_Limite_13
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (13 * 'C_Tamanho_Faixa'n)
         const C_Limite_13 = percentualMinimoDinamico + (13 * C_Tamanho_Faixa);
-        console.log("15. C_Limite_13:", C_Limite_13);
-        
-        // 16. C_Limite_14
-        // Expressão: 'Percentual Mínimo Dinâmico'n + (14 * 'C_Tamanho_Faixa'n)
         const C_Limite_14 = percentualMinimoDinamico + (14 * C_Tamanho_Faixa);
-        console.log("16. C_Limite_14:", C_Limite_14);
-        
-        console.log("=== FIM DOS CÁLCULOS ===");
 
         return {
-            C_LIMITE_01: C_Limite_01,
-            C_LIMITE_02: C_Limite_02,
-            C_LIMITE_03: C_Limite_03,
-            C_LIMITE_04: C_Limite_04,
-            C_LIMITE_05: C_Limite_05,
-            C_LIMITE_06: C_Limite_06,
-            C_LIMITE_07: C_Limite_07,
-            C_LIMITE_08: C_Limite_08,
-            C_LIMITE_09: C_Limite_09,
-            C_LIMITE_10: C_Limite_10,
-            C_LIMITE_11: C_Limite_11,
-            C_LIMITE_12: C_Limite_12,
-            C_LIMITE_13: C_Limite_13,
-            C_LIMITE_14: C_Limite_14,
-            // Valores de referência para debug
-            PERCENTUAL_MINIMO: percentualMinimoDinamico,
-            PERCENTUAL_MAXIMO: percentualMaximoDinamico,
-            INTERVALO_TOTAL: C_Intervalo_Total,
-            TAMANHO_FAIXA: C_Tamanho_Faixa
+            C_LIMITE_01: C_Limite_01, C_LIMITE_02: C_Limite_02, C_LIMITE_03: C_Limite_03,
+            C_LIMITE_04: C_Limite_04, C_LIMITE_05: C_Limite_05, C_LIMITE_06: C_Limite_06,
+            C_LIMITE_07: C_Limite_07, C_LIMITE_08: C_Limite_08, C_LIMITE_09: C_Limite_09,
+            C_LIMITE_10: C_Limite_10, C_LIMITE_11: C_Limite_11, C_LIMITE_12: C_Limite_12,
+            C_LIMITE_13: C_Limite_13, C_LIMITE_14: C_Limite_14
         };
     }
 
     function getBarColor(value, limits) {
-        // Implementação das 15 faixas de cores conforme a lógica especificada
-        console.log(`Analisando valor: ${value}`);
-        
-        // Faixa 1: Valor <= C_Limite_01
-        if (value <= limits.C_LIMITE_01) {
-            console.log(`  Faixa 1: ${value} <= ${limits.C_LIMITE_01} = #DE432A`);
-            return "#DE432A"; // Vermelho escuro
-        } 
-        // Faixa 2: C_Limite_01 < Valor <= C_Limite_02
-        else if (value > limits.C_LIMITE_01 && value <= limits.C_LIMITE_02) {
-            console.log(`  Faixa 2: ${limits.C_LIMITE_01} < ${value} <= ${limits.C_LIMITE_02} = #E8773D`);
-            return "#E8773D"; // Vermelho-laranja
-        } 
-        // Faixa 3: C_Limite_02 < Valor <= C_Limite_03
-        else if (value > limits.C_LIMITE_02 && value <= limits.C_LIMITE_03) {
-            console.log(`  Faixa 3: ${limits.C_LIMITE_02} < ${value} <= ${limits.C_LIMITE_03} = #EE9E4A`);
-            return "#EE9E4A"; // Laranja
-        } 
-        // Faixa 4: C_Limite_03 < Valor <= C_Limite_04
-        else if (value > limits.C_LIMITE_03 && value <= limits.C_LIMITE_04) {
-            console.log(`  Faixa 4: ${limits.C_LIMITE_03} < ${value} <= ${limits.C_LIMITE_04} = #F0A84D`);
-            return "#F0A84D"; // Laranja claro
-        } 
-        // Faixa 5: C_Limite_04 < Valor <= C_Limite_05
-        else if (value > limits.C_LIMITE_04 && value <= limits.C_LIMITE_05) {
-            console.log(`  Faixa 5: ${limits.C_LIMITE_04} < ${value} <= ${limits.C_LIMITE_05} = #F7D15B`);
-            return "#F7D15B"; // Amarelo-laranja
-        } 
-        // Faixa 6: C_Limite_05 < Valor <= C_Limite_06
-        else if (value > limits.C_LIMITE_05 && value <= limits.C_LIMITE_06) {
-            console.log(`  Faixa 6: ${limits.C_LIMITE_05} < ${value} <= ${limits.C_LIMITE_06} = #F5C958`);
-            return "#F5C958"; // Amarelo
-        } 
-        // Faixa 7: C_Limite_06 < Valor <= C_Limite_07
-        else if (value > limits.C_LIMITE_06 && value <= limits.C_LIMITE_07) {
-            console.log(`  Faixa 7: ${limits.C_LIMITE_06} < ${value} <= ${limits.C_LIMITE_07} = #F8D95E`);
-            return "#F8D95E"; // Amarelo claro
-        } 
-        // Faixa 8: C_Limite_07 < Valor <= C_Limite_08
-        else if (value > limits.C_LIMITE_07 && value <= limits.C_LIMITE_08) {
-            console.log(`  Faixa 8: ${limits.C_LIMITE_07} < ${value} <= ${limits.C_LIMITE_08} = #D9EC6B`);
-            return "#D9EC6B"; // Amarelo-verde
-        } 
-        // Faixa 9: C_Limite_08 < Valor <= C_Limite_09
-        else if (value > limits.C_LIMITE_08 && value <= limits.C_LIMITE_09) {
-            console.log(`  Faixa 9: ${limits.C_LIMITE_08} < ${value} <= ${limits.C_LIMITE_09} = #C1E16C`);
-            return "#C1E16C"; // Verde-amarelo
-        } 
-        // Faixa 10: C_Limite_09 < Valor <= C_Limite_10
-        else if (value > limits.C_LIMITE_09 && value <= limits.C_LIMITE_10) {
-            console.log(`  Faixa 10: ${limits.C_LIMITE_09} < ${value} <= ${limits.C_LIMITE_10} = #CEE76C`);
-            return "#CEE76C"; // Verde claro
-        } 
-        // Faixa 11: C_Limite_10 < Valor <= C_Limite_11
-        else if (value > limits.C_LIMITE_10 && value <= limits.C_LIMITE_11) {
-            console.log(`  Faixa 11: ${limits.C_LIMITE_10} < ${value} <= ${limits.C_LIMITE_11} = #ACDD6D`);
-            return "#ACDD6D"; // Verde
-        } 
-        // Faixa 12: C_Limite_11 < Valor <= C_Limite_12
-        else if (value > limits.C_LIMITE_11 && value <= limits.C_LIMITE_12) {
-            console.log(`  Faixa 12: ${limits.C_LIMITE_11} < ${value} <= ${limits.C_LIMITE_12} = #99CD6D`);
-            return "#99CD6D"; // Verde médio
-        } 
-        // Faixa 13: C_Limite_12 < Valor <= C_Limite_13
-        else if (value > limits.C_LIMITE_12 && value <= limits.C_LIMITE_13) {
-            console.log(`  Faixa 13: ${limits.C_LIMITE_12} < ${value} <= ${limits.C_LIMITE_13} = #63B46E`);
-            return "#63B46E"; // Verde escuro
-        } 
-        // Faixa 14: C_Limite_13 < Valor <= C_Limite_14
-        else if (value > limits.C_LIMITE_13 && value <= limits.C_LIMITE_14) {
-            console.log(`  Faixa 14: ${limits.C_LIMITE_13} < ${value} <= ${limits.C_LIMITE_14} = #4EA96F`);
-            return "#4EA96F"; // Verde muito escuro
-        } 
-        // Faixa 15: Valor > C_Limite_14
-        else {
-            console.log(`  Faixa 15: ${value} > ${limits.C_LIMITE_14} = #329C70`);
-            return "#329C70"; // Verde final (maior que C_Limite_14)
-        }
+        if (value <= limits.C_LIMITE_01) return "#DE432A";
+        else if (value <= limits.C_LIMITE_02) return "#E8773D";
+        else if (value <= limits.C_LIMITE_03) return "#EE9E4A";
+        else if (value <= limits.C_LIMITE_04) return "#F0A84D";
+        else if (value <= limits.C_LIMITE_05) return "#F7D15B";
+        else if (value <= limits.C_LIMITE_06) return "#F5C958";
+        else if (value <= limits.C_LIMITE_07) return "#F8D95E";
+        else if (value <= limits.C_LIMITE_08) return "#D9EC6B";
+        else if (value <= limits.C_LIMITE_09) return "#C1E16C";
+        else if (value <= limits.C_LIMITE_10) return "#CEE76C";
+        else if (value <= limits.C_LIMITE_11) return "#ACDD6D";
+        else if (value <= limits.C_LIMITE_12) return "#99CD6D";
+        else if (value <= limits.C_LIMITE_13) return "#63B46E";
+        else if (value <= limits.C_LIMITE_14) return "#4EA96F";
+        else return "#329C70";
     }
 
-    // FUNÇÃO PARA FORMATAR PORCENTAGEM (igual à imagem)
     function formatPercentage(value) {
         return d3.format(".2f")(value) + "%";
     }
 
-    // TOOLTIP
     function showTooltip(event, data) {
         const categoryLabel = processedData.columnLabels.category || "Categoria";
         const valueLabel = processedData.columnLabels.value || "Valor";
@@ -379,7 +230,6 @@ function initializeBarChart() {
         tooltip.style("display", "none");
     }
 
-    // ESTRUTURA EXATA DE DETECÇÃO DO SAS VA (COPIADA DO KPI)
     if (isInSASVA()) {
         if (typeof va !== 'undefined' && va.messagingUtil) {
             va.messagingUtil.setOnDataReceivedCallback(handleDataReceived);
@@ -406,62 +256,33 @@ function initializeBarChart() {
     function handleDataReceived(messageFromVA) {
         const now = Date.now();
         if (now - lastRenderTime < renderDelay) {
-            setTimeout(function() { 
-                onDataReceived(messageFromVA); 
-            }, renderDelay);
+            setTimeout(() => onDataReceived(messageFromVA), renderDelay);
         } else {
             onDataReceived(messageFromVA);
         }
         lastRenderTime = now;
     }
 
-    // PROCESSAMENTO DOS DADOS (ADAPTADO PARA BARRAS)
     function onDataReceived(messageFromVA) {
         vaMessage = messageFromVA;
         VA_RESULT_NAME = messageFromVA.resultName;
 
-        // VALIDAÇÃO EXATA COMO NO KPI
-        if (isInSASVA() && typeof va !== 'undefined' && va.contentUtil) {
-            const expectedRoles = ["string", "number"];
-                
-            if (!va.contentUtil.validateRoles(messageFromVA, expectedRoles, false)) {
-                if (va.messagingUtil) {
-                    va.messagingUtil.postInstructionalMessage(
-                        VA_RESULT_NAME,
-                        "O Gráfico de Barras Horizontal espera que as colunas sejam atribuídas nesta ordem:\n" +
-                        " 1. Categoria (string) - Ex: Município, Região, etc.\n" +
-                        " 2. Valor (número) - Ex: Porcentagem, Quantidade, etc.\n\n" +
-                        "Todas as categorias serão exibidas com rolagem vertical."
-                    );
-                }
-                return;
-            }
-        }
-
-        // Se não houver dados, limpa o gráfico
         if (!messageFromVA.data || messageFromVA.data.length === 0) {
             processedData = null;
             d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
             return;
         }
 
-        // PROCESSAMENTO DOS DADOS
         const columns = messageFromVA.columns;
         const allData = messageFromVA.data;
         
-        // Converte TODOS os dados (sem limite de 15)
         const chartData = allData
-            .map(function(row) {
-                return {
-                    category: row[0],
-                    value: parseFloat(row[1]) || 0
-                };
-            })
-            .sort(function(a, b) { 
-                return b.value - a.value; 
-            });
+            .map(row => ({
+                category: row[0],
+                value: parseFloat(row[1]) || 0
+            }))
+            .sort((a, b) => b.value - a.value);
 
-        // Aplicar a lógica EXATA de cálculo dos limites dinâmicos
         const limits = calculateDynamicColorLimits(chartData);
         
         processedData = {
@@ -473,7 +294,6 @@ function initializeBarChart() {
             }
         };
 
-        console.log("Dados processados (Barras) com limites calculados:", processedData);
         renderChart();
     }
 
@@ -486,19 +306,45 @@ function initializeBarChart() {
         const containerWidth = document.body.clientWidth;
         const containerHeight = document.body.clientHeight;
         
-        // ALTURA CALCULADA BASEADA NO NÚMERO DE BARRAS (barras mais finas com mais espaçamento)
-        const barHeight = 25; // REDUZIDO de 35 para 25px
+        const barHeight = 25;
         const totalBars = processedData.data.length;
         const calculatedHeight = Math.max(containerHeight, totalBars * barHeight + 40);
 
         d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
+
+        // --- CORREÇÃO: LÓGICA DA MARGEM DINÂMICA ---
+        let maxLabelWidth = 0;
+        
+        // Cria um SVG temporário e invisível para medir os textos corretamente
+        const tempSvg = d3.select("body").append("svg")
+            .attr("class", "temp-svg")
+            .style("position", "absolute")
+            .style("visibility", "hidden")
+            .style("width", "auto")
+            .style("height", "auto");
+
+        processedData.data.forEach(d => {
+            // Adiciona o texto ao SVG temporário para medição
+            const tempText = tempSvg.append("text")
+                .attr("class", "y-axis text") // Usa a mesma classe para obter o estilo correto
+                .text(d.category);
+                
+            // getBBox() agora funciona porque o texto está dentro de um SVG
+            const currentWidth = tempText.node().getBBox().width;
+            if (currentWidth > maxLabelWidth) {
+                maxLabelWidth = currentWidth;
+            }
+        });
+        
+        tempSvg.remove(); // Remove o SVG temporário após a medição
+        // --- FIM DA CORREÇÃO ---
 
         // MARGENS AJUSTADAS
         const margin = {
             top: 10,
             right: 80,
             bottom: 10,
-            left: 120
+            left: maxLabelWidth + 15 // Define a margem com base na largura máxima + um preenchimento
         };
 
         const chartWidth = containerWidth - margin.left - margin.right;
@@ -507,28 +353,29 @@ function initializeBarChart() {
         svg = d3.select("#" + SVG_CONTAINER_ID)
             .append("svg")
             .attr("width", containerWidth)
-            .attr("height", calculatedHeight) // ALTURA DINÂMICA
+            .attr("height", calculatedHeight)
             .style("background-color", "transparent");
 
         mainGroup = svg.append("g")
             .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
         // ESCALAS
+        const xMax = d3.max(processedData.data, d => d.value) || 0;
         const xScale = d3.scaleLinear()
-            .domain([0, d3.max(processedData.data, d => d.value)])
+            .domain([0, xMax * 1.2]) 
             .range([0, chartWidth]);
 
         const yScale = d3.scaleBand()
             .domain(processedData.data.map(d => d.category))
             .range([0, chartHeight])
-            .padding(0.4); // AUMENTADO de 0.1 para 0.4 (mais espaçamento)
+            .padding(0.4);
 
-        // APENAS EIXO Y (removido eixo X completamente) - AGORA SEM TICKS
+        // EIXO Y
         mainGroup.append("g")
             .attr("class", "y-axis axis")
             .call(d3.axisLeft(yScale));
 
-        // BARRAS COM CORES DINÂMICAS IMPLEMENTADAS EXATAMENTE CONFORME ESPECIFICAÇÃO
+        // BARRAS
         mainGroup.selectAll(".data-bar")
             .data(processedData.data)
             .enter()
@@ -538,30 +385,21 @@ function initializeBarChart() {
             .attr("y", d => yScale(d.category))
             .attr("width", d => xScale(d.value))
             .attr("height", yScale.bandwidth())
-            .attr("fill", d => {
-                const color = getBarColor(d.value, processedData.limits);
-                return color;
-            })
-            .on("mouseenter", function(event, d) {
-                showTooltip(event, d);
-            })
-            .on("mouseleave", function() {
-                hideTooltip();
-            })
-            .on("mousemove", function(event, d) {
-                showTooltip(event, d);
-            });
+            .attr("fill", d => getBarColor(d.value, processedData.limits))
+            .on("mouseenter", (event, d) => showTooltip(event, d))
+            .on("mouseleave", () => hideTooltip())
+            .on("mousemove", (event, d) => showTooltip(event, d));
 
-        // LABELS DE VALOR EM FORMATO DE PORCENTAGEM (igual à imagem)
+        // RÓTULOS DE VALOR
         mainGroup.selectAll(".value-label")
             .data(processedData.data)
             .enter()
             .append("text")
             .attr("class", "value-label")
-            .attr("x", d => xScale(d.value) + 8) // Pequeno espaçamento da barra
+            .attr("x", d => xScale(d.value) + 8)
             .attr("y", d => yScale(d.category) + yScale.bandwidth() / 2)
             .attr("dy", "0.35em")
-            .text(d => formatPercentage(d.value)); // FORMATO DE PORCENTAGEM
+            .text(d => formatPercentage(d.value));
     }
 }
 </script>
