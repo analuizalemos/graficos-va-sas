@@ -5,12 +5,6 @@
   <!-- Import D3.js -->
   <script type="text/javascript" src="https://d3js.org/d3.v5.min.js"></script>
 
-  <!-- Import fetch polyfill for IE11 -->
-  <script type="text/javascript" src="https://polyfill.io/v3/polyfill.min.js?features=fetch%2CObject.values%2CString.prototype.includes" crossorigin="anonymous"></script>
-
-  <!-- Import utilities -->
-  <script type="text/javascript" src="https://sas-viya.github.io/dev/rest-api-calls/messaging-util.js"></script>
-  <script type="text/javascript" src="https://sas-viya.github.io/dev/rest-api-calls/content-util.js"></script>
 </head>
 <body>
 <style type="text/css">
@@ -34,6 +28,7 @@
     font-size: 2em;
     text-align: center;
     padding-top: 2em;
+    color: white;
   }
 
   .container {
@@ -98,6 +93,7 @@
     border-radius: 5px;
     pointer-events: none;
     display: none;
+    color: white;
   }
 
   .tooltip-title, .tooltip-value {
@@ -128,7 +124,7 @@
 </style>
 
 <div class="container">
-  <p class="loading">Loading...</p>
+  <p class="loading">Carregando mapa...</p>
   <svg class="map-svg"></svg>
   <div id="back-button">&larr; Voltar para o Brasil</div>
   <div class="leg-container">
@@ -169,18 +165,30 @@ document.addEventListener("DOMContentLoaded", function() {
   let TOOLTIP = d3.select(".tooltip-container");
   let g; // Group element for map paths
 
-  const GEOJSON_STATES_URL = "https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geo1_uf_2010.json";
+  // ArcGIS FeatureServer URL for Brazil States (UFs)
+  const ARCGIS_SERVICE_URL = "https://services7.arcgis.com/wyfPsHBH5pLzcvJv/arcgis/rest/services/Limites_geogr%C3%A1ficos_IBGE_2022/FeatureServer";
+  const GEOJSON_STATES_URL = `${ARCGIS_SERVICE_URL}/0/query?where=1%3D1&outFields=*&f=geojson`;
 
   /*************************************************** Setup Callbacks ***************************************************/
 
   d3.json(GEOJSON_STATES_URL).then(function(json) {
       BRAZIL_STATES_JSON = json;
       if (DATA) init();
+  }).catch(function(error) {
+      d3.select(".loading").text("Erro ao carregar o mapa do Brasil.");
+      console.error("Failed to load Brazil GeoJSON from ArcGIS:", error);
   });
+  
+  // Check if running inside SAS VA
+  if (typeof va !== "undefined" && va.messagingUtil) {
+      va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
+      va.contentUtil.setupResizeListener(init);
+  } else {
+      // If not in VA, use sample data after a short delay
+      setTimeout(() => onDataReceived(SAMPLE_MESSAGE), 500);
+      window.addEventListener("resize", init);
+  }
 
-  va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
-  if (!inIframe()) onDataReceived(SAMPLE_MESSAGE);
-  va.contentUtil.setupResizeListener(init);
   d3.select("#back-button").on("click", drawStates);
 
   /****************************************************** Core Functions ******************************************************/
@@ -188,22 +196,27 @@ document.addEventListener("DOMContentLoaded", function() {
   function onDataReceived(messageFromVA) {
     DATA = {};
     messageFromVA.data.forEach(row => {
-      if (row[1] != null && row[1] !== ".") DATA[row[0]] = { id: row[0], measure: +row[1] };
+      if (row && row[0] != null && row[1] != null && row[1] !== ".") {
+          DATA[row[0]] = { id: row[0], measure: +row[1] };
+      }
     });
     
     METADATA = {
       measureLabel: messageFromVA.columns[1].label,
-      measureFormat: d3.format(messageFromVA.columns[1].format.formatString.includes("DOLLAR") ? "$,.0f" : ",.0f")
+      measureFormat: d3.format(messageFromVA.columns[1].format && messageFromVA.columns[1].format.formatString.includes("DOLLAR") ? "$,.0f" : ",.0f")
     };
 
+    const dataValues = Object.values(DATA).map(d => d.measure);
     COLOR_SCALE = d3.scaleLinear()
-      .domain(d3.extent(Object.values(DATA), d => d.measure))
+      .domain(d3.extent(dataValues))
       .range(["#f7fbff", "#08306b"]);
 
     if (SVG) update(); else if (BRAZIL_STATES_JSON) init();
   }
 
   function init() {
+    if (!BRAZIL_STATES_JSON || !DATA) return;
+
     d3.select(".loading").style("display", "none");
     const container = d3.select(".container");
     const width = container.node().getBoundingClientRect().width;
@@ -223,14 +236,13 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   function update() {
-    // This function is now simpler, as coloring is handled within drawStates
     if (g.selectAll(".estado").empty()) {
         drawStates();
     } else {
         g.selectAll(".estado")
           .transition().duration(500)
           .attr("fill", d => {
-            const stateData = DATA[d.properties.sigla];
+            const stateData = DATA[d.properties.SIGLA_UF];
             return stateData ? COLOR_SCALE(stateData.measure) : "#CCC";
           });
     }
@@ -239,7 +251,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function drawStates() {
     d3.select("#back-button").style("display", "none");
-    g.selectAll("*").remove(); // Clear previous map (e.g., municipalities)
+    g.selectAll("*").remove();
 
     PROJECTION.fitSize([
         SVG.node().getBoundingClientRect().width,
@@ -252,7 +264,7 @@ document.addEventListener("DOMContentLoaded", function() {
       .attr("class", "geo-path estado")
       .attr("d", PATH_GENERATOR)
       .attr("fill", d => {
-        const stateData = DATA[d.properties.sigla];
+        const stateData = DATA[d.properties.SIGLA_UF];
         return stateData ? COLOR_SCALE(stateData.measure) : "#CCC";
       })
       .on("mouseover", (event, d) => handleMouseOver(d, "estado"))
@@ -262,10 +274,14 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   function handleStateClick(event, d) {
-    const stateUF = d.properties.sigla.toLowerCase();
-    const GEOJSON_MUNICIPIOS_URL = `https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geo2_mun_${stateUF}_2010.json`;
+    const stateUF = d.properties.SIGLA_UF;
+    // Layer 5 corresponds to Municipalities
+    const GEOJSON_MUNICIPIOS_URL = `${ARCGIS_SERVICE_URL}/5/query?where=SIGLA_UF%3D'${stateUF}'&outFields=*&f=geojson`;
     
+    d3.select(".loading").style("display", "block").text("Carregando municípios...");
+
     d3.json(GEOJSON_MUNICIPIOS_URL).then(municipalitiesJson => {
+        d3.select(".loading").style("display", "none");
         d3.select("#back-button").style("display", "block");
         g.selectAll("*").remove();
 
@@ -273,6 +289,7 @@ document.addEventListener("DOMContentLoaded", function() {
             SVG.node().getBoundingClientRect().width,
             SVG.node().getBoundingClientRect().height
         ], d);
+        PATH_GENERATOR.projection(PROJECTION);
 
         g.selectAll(".municipio")
           .data(municipalitiesJson.features)
@@ -282,6 +299,9 @@ document.addEventListener("DOMContentLoaded", function() {
           .on("mouseover", (event, d_mun) => handleMouseOver(d_mun, "municipio"))
           .on("mousemove", handleMouseMove)
           .on("mouseout", handleMouseOut);
+    }).catch(error => {
+        d3.select(".loading").text(`Erro ao carregar municípios de ${stateUF}.`);
+        console.error("Failed to load municipalities GeoJSON from ArcGIS:", error);
     });
   }
 
@@ -290,14 +310,14 @@ document.addEventListener("DOMContentLoaded", function() {
   function handleMouseOver(d, type) {
     TOOLTIP.style("display", "block");
     if (type === "estado") {
-        const stateData = DATA[d.properties.sigla];
-        TOOLTIP.select(".tooltip-title").html(`${d.properties.nome} (${d.properties.sigla})`);
+        const stateData = DATA[d.properties.SIGLA_UF];
+        TOOLTIP.select(".tooltip-title").html(`${d.properties.NM_UF} (${d.properties.SIGLA_UF})`);
         TOOLTIP.select(".tooltip-value").html(
             stateData ? METADATA.measureFormat(stateData.measure) : "Sem dados"
         );
     } else if (type === "municipio") {
-        TOOLTIP.select(".tooltip-title").html(`${d.properties.nome}`);
-        TOOLTIP.select(".tooltip-value").html(`Cód: ${d.properties.id}`);
+        TOOLTIP.select(".tooltip-title").html(`${d.properties.NM_MUN}`);
+        TOOLTIP.select(".tooltip-value").html(`Cód: ${d.properties.CD_MUN}`);
     }
   }
   
@@ -307,10 +327,11 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function handleMouseMove(event) {
       TOOLTIP.style("left", (event.pageX + 15) + "px")
-             .style("top", (event.pageY - 28) + "px");
+             .style("top", (event.pageY - 15) + "px");
   }
 
   function updateLegend() {
+    if(!METADATA || !COLOR_SCALE || !COLOR_SCALE.domain().every(v => isFinite(v))) return;
     const LEG_GRAD_WIDTH = 100;
     const LEG_GRAD_HEIGHT = 25;
     d3.select(".leg-title").html(METADATA.measureLabel);
