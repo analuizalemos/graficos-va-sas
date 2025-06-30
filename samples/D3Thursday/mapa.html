@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <!-- Import D3.js -->
+  <script type="text/javascript" src="https://d3js.org/d3.v5.min.js"></script>
+
+  <!-- Import fetch polyfill for IE11 -->
+  <script type="text/javascript" src="https://polyfill.io/v3/polyfill.min.js?features=fetch%2CObject.values%2CString.prototype.includes" crossorigin="anonymous"></script>
+
+  <!-- Import utilities -->
+  <script type="text/javascript" src="https://sas-viya.github.io/dev/rest-api-calls/messaging-util.js"></script>
+  <script type="text/javascript" src="https://sas-viya.github.io/dev/rest-api-calls/content-util.js"></script>
+</head>
+<body>
+<style type="text/css">
+  html, body {
+    overflow: hidden;
+    margin: 0px;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    font-family: Verdana, sans-serif;
+  }
+
+  p {
+    color: white;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    margin-top: 5px;
+    margin-bottom: 5px;
+  }
+
+  .loading {
+    font-size: 2em;
+    text-align: center;
+    padding-top: 2em;
+  }
+
+  .container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .map-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .geo-path {
+    stroke: #333;
+    stroke-width: 0.5px;
+    transition: opacity 0.3s;
+  }
+
+  .geo-path:hover {
+    stroke: white;
+    stroke-width: 1.5px;
+    cursor: pointer;
+  }
+  
+  .municipio {
+      stroke: #666;
+      stroke-width: 0.2px;
+      fill: #ccc;
+  }
+  
+  .municipio:hover {
+      stroke: black;
+      stroke-width: 0.8px;
+      fill: #aaa;
+  }
+
+  .leg-container {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+
+  .leg-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .leg-title, .leg-min, .leg-max {
+    font-size: 1.2em;
+  }
+
+  .leg-min, .leg-max {
+    font-size: 1em;
+  }
+
+  .tooltip-container {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.6);
+    padding: 5px 10px;
+    border-radius: 5px;
+    pointer-events: none;
+    display: none;
+  }
+
+  .tooltip-title, .tooltip-value {
+    font-size: 1.2em;
+    margin: 0;
+  }
+
+  .tooltip-value {
+    font-size: 1em;
+  }
+  
+  #back-button {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      padding: 8px 12px;
+      background-color: rgba(0,0,0,0.5);
+      color: white;
+      border: 1px solid white;
+      border-radius: 5px;
+      cursor: pointer;
+      display: none; /* Hidden by default */
+  }
+  #back-button:hover {
+      background-color: rgba(255,255,255,0.2);
+  }
+
+</style>
+
+<div class="container">
+  <p class="loading">Loading...</p>
+  <svg class="map-svg"></svg>
+  <div id="back-button">&larr; Voltar para o Brasil</div>
+  <div class="leg-container">
+    <div class="leg-row">
+      <p class="leg-title"></p>
+    </div>
+    <div class="leg-row">
+      <p class="leg-min"></p>
+      <div class="leg-grad" style="margin: 0 5px;"></div>
+      <p class="leg-max"></p>
+    </div>
+  </div>
+  <div class="tooltip-container">
+      <p class="tooltip-title"></p>
+      <p class="tooltip-value"></p>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+document.addEventListener("DOMContentLoaded", function() {
+  /******************************************************* Declare variables *******************************************************/
+
+  const SAMPLE_MESSAGE = {
+    version: "1", resultName: "dd858", rowCount: 5,
+    data: [
+      ["SP", 350], ["RJ", 210], ["MG", 450], ["BA", 150], ["RS", 280]
+    ],
+    columns: [
+      { name: "uf_code", label: "UF", type: "string" },
+      { name: "sales", label: "Vendas (R$)", type: "number", format: { formatString: "BEST12." } }
+    ]
+  };
+
+  let DATA, METADATA, BRAZIL_STATES_JSON;
+  let SVG, PROJECTION, PATH_GENERATOR, COLOR_SCALE;
+  let TOOLTIP = d3.select(".tooltip-container");
+  let g; // Group element for map paths
+
+  const GEOJSON_STATES_URL = "https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geo1_uf_2010.json";
+
+  /*************************************************** Setup Callbacks ***************************************************/
+
+  d3.json(GEOJSON_STATES_URL).then(function(json) {
+      BRAZIL_STATES_JSON = json;
+      if (DATA) init();
+  });
+
+  va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
+  if (!inIframe()) onDataReceived(SAMPLE_MESSAGE);
+  va.contentUtil.setupResizeListener(init);
+  d3.select("#back-button").on("click", drawStates);
+
+  /****************************************************** Core Functions ******************************************************/
+
+  function onDataReceived(messageFromVA) {
+    DATA = {};
+    messageFromVA.data.forEach(row => {
+      if (row[1] != null && row[1] !== ".") DATA[row[0]] = { id: row[0], measure: +row[1] };
+    });
+    
+    METADATA = {
+      measureLabel: messageFromVA.columns[1].label,
+      measureFormat: d3.format(messageFromVA.columns[1].format.formatString.includes("DOLLAR") ? "$,.0f" : ",.0f")
+    };
+
+    COLOR_SCALE = d3.scaleLinear()
+      .domain(d3.extent(Object.values(DATA), d => d.measure))
+      .range(["#f7fbff", "#08306b"]);
+
+    if (SVG) update(); else if (BRAZIL_STATES_JSON) init();
+  }
+
+  function init() {
+    d3.select(".loading").style("display", "none");
+    const container = d3.select(".container");
+    const width = container.node().getBoundingClientRect().width;
+    const height = container.node().getBoundingClientRect().height;
+
+    if (!SVG) {
+        SVG = container.select("svg");
+        g = SVG.append("g");
+    }
+    
+    SVG.attr("viewBox", `0 0 ${width} ${height}`);
+    PROJECTION = d3.geoMercator();
+    PATH_GENERATOR = d3.geoPath().projection(PROJECTION);
+    
+    drawStates();
+    updateLegend();
+  }
+
+  function update() {
+    // This function is now simpler, as coloring is handled within drawStates
+    if (g.selectAll(".estado").empty()) {
+        drawStates();
+    } else {
+        g.selectAll(".estado")
+          .transition().duration(500)
+          .attr("fill", d => {
+            const stateData = DATA[d.properties.sigla];
+            return stateData ? COLOR_SCALE(stateData.measure) : "#CCC";
+          });
+    }
+    updateLegend();
+  }
+
+  function drawStates() {
+    d3.select("#back-button").style("display", "none");
+    g.selectAll("*").remove(); // Clear previous map (e.g., municipalities)
+
+    PROJECTION.fitSize([
+        SVG.node().getBoundingClientRect().width,
+        SVG.node().getBoundingClientRect().height
+    ], BRAZIL_STATES_JSON);
+
+    g.selectAll(".estado")
+      .data(BRAZIL_STATES_JSON.features)
+      .enter().append("path")
+      .attr("class", "geo-path estado")
+      .attr("d", PATH_GENERATOR)
+      .attr("fill", d => {
+        const stateData = DATA[d.properties.sigla];
+        return stateData ? COLOR_SCALE(stateData.measure) : "#CCC";
+      })
+      .on("mouseover", (event, d) => handleMouseOver(d, "estado"))
+      .on("mousemove", handleMouseMove)
+      .on("mouseout", handleMouseOut)
+      .on("click", handleStateClick);
+  }
+
+  function handleStateClick(event, d) {
+    const stateUF = d.properties.sigla.toLowerCase();
+    const GEOJSON_MUNICIPIOS_URL = `https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geo2_mun_${stateUF}_2010.json`;
+    
+    d3.json(GEOJSON_MUNICIPIOS_URL).then(municipalitiesJson => {
+        d3.select("#back-button").style("display", "block");
+        g.selectAll("*").remove();
+
+        PROJECTION.fitSize([
+            SVG.node().getBoundingClientRect().width,
+            SVG.node().getBoundingClientRect().height
+        ], d);
+
+        g.selectAll(".municipio")
+          .data(municipalitiesJson.features)
+          .enter().append("path")
+          .attr("class", "geo-path municipio")
+          .attr("d", PATH_GENERATOR)
+          .on("mouseover", (event, d_mun) => handleMouseOver(d_mun, "municipio"))
+          .on("mousemove", handleMouseMove)
+          .on("mouseout", handleMouseOut);
+    });
+  }
+
+  /******************************************************* Helper Functions *******************************************************/
+
+  function handleMouseOver(d, type) {
+    TOOLTIP.style("display", "block");
+    if (type === "estado") {
+        const stateData = DATA[d.properties.sigla];
+        TOOLTIP.select(".tooltip-title").html(`${d.properties.nome} (${d.properties.sigla})`);
+        TOOLTIP.select(".tooltip-value").html(
+            stateData ? METADATA.measureFormat(stateData.measure) : "Sem dados"
+        );
+    } else if (type === "municipio") {
+        TOOLTIP.select(".tooltip-title").html(`${d.properties.nome}`);
+        TOOLTIP.select(".tooltip-value").html(`Cód: ${d.properties.id}`);
+    }
+  }
+  
+  function handleMouseOut() {
+      TOOLTIP.style("display", "none");
+  }
+
+  function handleMouseMove(event) {
+      TOOLTIP.style("left", (event.pageX + 15) + "px")
+             .style("top", (event.pageY - 28) + "px");
+  }
+
+  function updateLegend() {
+    const LEG_GRAD_WIDTH = 100;
+    const LEG_GRAD_HEIGHT = 25;
+    d3.select(".leg-title").html(METADATA.measureLabel);
+    d3.select(".leg-min").html(METADATA.measureFormat(COLOR_SCALE.domain()[0]));
+    d3.select(".leg-grad").attr("style", `width: ${LEG_GRAD_WIDTH}px; height: ${LEG_GRAD_HEIGHT}px; background-image: linear-gradient(to right, ${COLOR_SCALE.range()[0]}, ${COLOR_SCALE.range()[1]}); margin: 0 5px;`);
+    d3.select(".leg-max").html(METADATA.measureFormat(COLOR_SCALE.domain()[1]));
+  }
+
+  function inIframe() {
+    try { return window.self !== window.top; } catch (e) { return true; }
+  }
+});
+</script>
+</body>
+</html>
