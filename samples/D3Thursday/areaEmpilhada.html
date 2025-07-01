@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<!--
+Gráfico de Área Empilhada (Stacked Area Chart) adaptado para SAS Visual Analytics.
+Baseado na estrutura do gráfico de barras funcional para garantir compatibilidade.
+- Integração com SAS VA para recebimento de dados e redimensionamento.
+- Funciona com dados de exemplo fora do ambiente SAS VA.
+- Design responsivo e fundo transparente.
+- Tooltip interativo que exibe valores ao passar o mouse.
+-->
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gráfico de Área Empilhada para SAS VA</title>
+    <!-- Import D3.js -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+    <!-- Importar utilitários do SAS VA -->
+    <script type="text/javascript">
+        if (typeof window !== 'undefined' && window.self !== window.top) {
+            try {
+                document.write('<script type="text/javascript" src="../../util/messagingUtil.js"><\/script>');
+                document.write('<script type="text/javascript" src="../../util/contentUtil.js"><\/script>');
+            } catch(e) {
+                console.log("Utilitários do SAS VA não disponíveis. Rodando em modo de exemplo.");
+            }
+        }
+    </script>
+</head>
+<body>
+<style type="text/css">
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Avenir Next', 'Avenir', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background-color: transparent; /* Fundo transparente */
+    }
+
+    #chart-container {
+        width: 100%;
+        height: 100%;
+    }
+
+    svg {
+        width: 100%;
+        height: 100%;
+        background-color: transparent;
+    }
+
+    .axis text {
+        font-size: 12px;
+        fill: #333;
+    }
+
+    .axis path, .axis line {
+        stroke: #ccc;
+    }
+    
+    .axis .domain {
+        stroke-width: 1px;
+    }
+
+    .grid-line {
+        stroke: #e0e0e0;
+        stroke-opacity: 0.7;
+        shape-rendering: crispEdges;
+    }
+
+    .tooltip {
+        position: absolute;
+        background-color: rgba(255, 255, 255, 0.95);
+        color: #333;
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: 'Avenir Next', sans-serif;
+        pointer-events: none;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        border: 1px solid #ddd;
+    }
+    
+    .tooltip-title {
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+
+    .tooltip-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 3px;
+    }
+
+    .tooltip-color-box {
+        width: 10px;
+        height: 10px;
+        margin-right: 5px;
+        border-radius: 2px;
+    }
+
+</style>
+
+<div id="chart-container"></div>
+<div id="tooltip" class="tooltip"></div>
+
+<script>
+"use strict";
+
+function waitForD3(callback) {
+    if (typeof d3 !== 'undefined') {
+        callback();
+    } else {
+        setTimeout(() => waitForD3(callback), 100);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    waitForD3(initializeAreaChart);
+});
+
+function initializeAreaChart() {
+    const SVG_CONTAINER_ID = "chart-container";
+    const tooltip = d3.select("#tooltip");
+    let vaMessage;
+    let processedData;
+    let lastRenderTime = 0;
+    const renderDelay = 250; // Previne renderizações excessivas
+
+    // Dados de exemplo para teste fora do SAS VA
+    // Estrutura: [Data, Categoria, Valor]
+    const SAMPLE_MESSAGE = {
+        resultName: "stackedAreaSample",
+        rowCount: 12,
+        data: [
+            ["2023-01-01", "Varejo", 2200], ["2023-01-01", "Serviços", 3500], ["2023-01-01", "Indústria", 1800],
+            ["2023-02-01", "Varejo", 2400], ["2023-02-01", "Serviços", 3600], ["2023-02-01", "Indústria", 1900],
+            ["2023-03-01", "Varejo", 2600], ["2023-03-01", "Serviços", 3800], ["2023-03-01", "Indústria", 2000],
+            ["2023-04-01", "Varejo", 2500], ["2023-04-01", "Serviços", 4100], ["2023-04-01", "Indústria", 2100],
+        ],
+        columns: [
+            { label: "Mês", type: "date", format: { name: "DATE" } },
+            { label: "Setor", type: "string" },
+            { label: "Faturamento", type: "number", format: { name: "BEST", precision: 2 } }
+        ]
+    };
+
+    // Função para verificar se está no ambiente SAS VA
+    function isInSASVA() {
+        try {
+            return window.self !== window.top && typeof va?.messagingUtil !== 'undefined';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // Configura listeners do SAS VA ou eventos de janela padrão
+    if (isInSASVA()) {
+        va.messagingUtil.setOnDataReceivedCallback(handleDataReceived);
+        va.contentUtil.setupResizeListener(renderChart);
+    } else {
+        handleDataReceived(SAMPLE_MESSAGE);
+        window.addEventListener("resize", renderChart);
+    }
+
+    // Controla o fluxo de recebimento de dados
+    function handleDataReceived(messageFromVA) {
+        const now = Date.now();
+        if (now - lastRenderTime < renderDelay) {
+            setTimeout(() => onDataReceived(messageFromVA), renderDelay);
+        } else {
+            onDataReceived(messageFromVA);
+        }
+        lastRenderTime = now;
+    }
+
+    // Processa os dados recebidos do SAS VA
+    function onDataReceived(messageFromVA) {
+        vaMessage = messageFromVA;
+
+        if (!messageFromVA.data || messageFromVA.data.length === 0) {
+            processedData = null;
+            d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
+            return;
+        }
+
+        const columns = messageFromVA.columns;
+        const allData = messageFromVA.data;
+        
+        // Mapeia os dados para um formato mais fácil de usar
+        const chartData = allData.map(row => ({
+            date: new Date(row[0]),
+            category: row[1],
+            value: parseFloat(row[2]) || 0
+        }));
+
+        processedData = {
+            data: chartData,
+            columnLabels: {
+                date: columns[0].label,
+                category: columns[1].label,
+                value: columns[2].label
+            }
+        };
+
+        renderChart();
+    }
+
+    // Função principal de renderização do gráfico
+    function renderChart() {
+        if (!processedData) return;
+
+        const container = document.getElementById(SVG_CONTAINER_ID);
+        d3.select(container).selectAll("*").remove(); // Limpa o container
+
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const margin = { top: 20, right: 30, bottom: 40, left: 60 };
+
+        const chartWidth = width - margin.left - margin.right;
+        const chartHeight = height - margin.top - margin.bottom;
+
+        const svg = d3.select(container)
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+        
+        // --- Lógica de Empilhamento (Stacking) ---
+        const seriesKeys = Array.from(d3.union(processedData.data.map(d => d.category))).sort();
+
+        // Agrupa os dados por data, criando um mapa aninhado: Map(data -> Map(categoria -> objeto de dados))
+        const dataGroupedByDate = d3.index(processedData.data, d => d.date, d => d.category);
+
+        const stack = d3.stack()
+            .keys(seriesKeys)
+            // CORREÇÃO: Ao iterar sobre o mapa, 'dateGroup' é um array [chave, valor], ou seja, [data, mapaDeCategorias].
+            // Acessamos o mapa de categorias com dateGroup[1].
+            .value((dateGroup, key) => dateGroup[1].get(key)?.value || 0)
+            .offset(d3.stackOffsetExpand); // Normaliza para 100%
+
+        const series = stack(dataGroupedByDate);
+
+        // --- Escalas ---
+        const x = d3.scaleUtc()
+            .domain(d3.extent(processedData.data, d => d.date))
+            .range([0, chartWidth]);
+
+        const y = d3.scaleLinear()
+            .domain([0, 1]) // O domínio é de 0 a 1 (0% a 100%) por causa do stackOffsetExpand
+            .range([chartHeight, 0]);
+
+        const color = d3.scaleOrdinal(d3.schemeTableau10)
+            .domain(seriesKeys);
+
+        // --- Gerador de Área ---
+        const area = d3.area()
+            .x(d => x(d.data[0])) // d.data[0] é a data (a chave do grupo)
+            .y0(d => y(d[0]))    // d[0] é o início da área (y0)
+            .y1(d => y(d[1]));   // d[1] é o fim da área (y1)
+
+        // --- Desenho das Áreas ---
+        svg.append("g")
+            .selectAll("path")
+            .data(series)
+            .join("path")
+            .attr("fill", d => color(d.key))
+            .attr("d", area)
+            .append("title") // Tooltip nativo simples
+            .text(d => d.key);
+
+        // --- Eixos ---
+        const xAxis = g => g
+            .attr("transform", `translate(0,${chartHeight})`)
+            .call(d3.axisBottom(x).ticks(width / 80).tickSizeOuter(0))
+            .call(g => g.select(".domain").remove());
+
+        const yAxis = g => g
+            .call(d3.axisLeft(y).ticks(10, "%")) // Formato de porcentagem
+            .call(g => g.select(".domain").remove())
+            .call(g => g.selectAll(".tick line")
+                .clone()
+                .attr("x2", chartWidth)
+                .attr("stroke-opacity", 0.1))
+            .call(g => g.append("text")
+                .attr("x", -margin.left)
+                .attr("y", 10)
+                .attr("fill", "currentColor")
+                .attr("text-anchor", "start")
+                .text(`↑ ${processedData.columnLabels.value} (%)`));
+
+        svg.append("g").call(xAxis);
+        svg.append("g").call(yAxis);
+        
+        // --- Lógica do Tooltip Interativo ---
+        const tooltipLine = svg.append("line")
+            .attr("stroke", "#333")
+            .attr("stroke-width", 1.5)
+            .attr("stroke-dasharray", "3,3")
+            .style("display", "none");
+
+        const tooltipCircles = svg.append("g").style("display", "none");
+
+        const listeningRect = svg.append("rect")
+            .attr("width", chartWidth)
+            .attr("height", chartHeight)
+            .attr("fill", "none")
+            .attr("pointer-events", "all");
+
+        listeningRect.on("mousemove", event => {
+            const pointer = d3.pointer(event, this);
+            const mouseX = pointer[0];
+            const hoveredDate = x.invert(mouseX); // Converte a posição do mouse para data
+
+            // Encontra o ponto de dados mais próximo no tempo
+            const bisector = d3.bisector(d => d.data[0]).left;
+            const index = bisector(series[0], hoveredDate, 1);
+            const d0 = series[0][index - 1];
+            const d1 = series[0][index];
+            
+            if (!d0 || !d1) return; // Sai se não encontrar pontos de dados
+
+            const dataPoint = (hoveredDate - d0.data[0] > d1.data[0] - hoveredDate) ? d1 : d0;
+            
+            const dataPointIndex = series[0].indexOf(dataPoint);
+            const dataAtDate = series.map(s => s[dataPointIndex]);
+            const actualDate = dataPoint.data[0];
+
+            // Atualiza a linha e os círculos do tooltip
+            tooltipLine
+                .style("display", null)
+                .attr("x1", x(actualDate))
+                .attr("x2", x(actualDate))
+                .attr("y1", 0)
+                .attr("y2", chartHeight);
+
+            tooltipCircles.selectAll("*").remove();
+            tooltipCircles.style("display", null)
+                .selectAll("circle")
+                .data(dataAtDate)
+                .join("circle")
+                .attr("cx", x(actualDate))
+                .attr("cy", d => y((d[0] + d[1]) / 2)) // Posição central na área
+                .attr("r", 4)
+                .attr("fill", d => color(d.key))
+                .attr("stroke", "white")
+                .attr("stroke-width", 1.5);
+            
+            // Monta e exibe o tooltip HTML
+            const totalAtDate = d3.sum(dataAtDate, d => {
+                const originalPoint = dataPoint.data[1].get(d.key);
+                return originalPoint ? originalPoint.value : 0;
+            });
+
+            let tooltipContent = `<div class="tooltip-title">${d3.timeFormat("%d/%m/%Y")(actualDate)}</div>`;
+            
+            series.forEach(s => {
+                const originalPoint = dataPoint.data[1].get(s.key);
+                if (originalPoint) {
+                    const percentage = (originalPoint.value / totalAtDate) || 0;
+                    tooltipContent += `
+                        <div class="tooltip-item">
+                            <div class="tooltip-color-box" style="background-color: ${color(s.key)}"></div>
+                            <span>${s.key}: ${d3.format(".2%")(percentage)} (${d3.format(",.0f")(originalPoint.value)})</span>
+                        </div>
+                    `;
+                }
+            });
+            
+            tooltip.style("display", "block")
+                   .html(tooltipContent)
+                   .style("left", (event.pageX + 15) + "px")
+                   .style("top", (event.pageY - 15) + "px");
+
+        }).on("mouseleave", () => {
+            tooltip.style("display", "none");
+            tooltipLine.style("display", "none");
+            tooltipCircles.style("display", "none");
+        });
+    }
+}
+</script>
+</body>
+</html>
