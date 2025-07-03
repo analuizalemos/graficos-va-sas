@@ -22,6 +22,7 @@ Arquivo modificado para:
 3. Adicionar uma mensagem de erro de verificação mais clara.
 4. Melhorar o destaque visual ao selecionar um item na legenda.
 5. Corrigir o erro "event.stopPropagation is not a function".
+6. Remover mensagens de "sem dados para exibir".
 ------------------------------------------------------------------
 -->
 <html>
@@ -164,8 +165,8 @@ function onMessageReceived(event) {
 
 /****************************************************** Callback Functions ******************************************************/
 function onDataReceived(messageFromVA) {
+    // Retorna silenciosamente se não há dados
     if (!messageFromVA || !messageFromVA.data || messageFromVA.data.length === 0) {
-        d3.select("body").html("<h1>Sem dados para exibir</h1>");
         return;
     }
 
@@ -188,8 +189,8 @@ function onDataReceived(messageFromVA) {
         }
     });
 
+    // Retorna silenciosamente se a configuração não está correta
     if (colIndices.metric === -1 || colIndices.answer === -1 || colIndices.value === -1 || colIndices.flagCategories.length === 0) {
-        d3.select("body").html(`<h1>Erro de Configuração (Versão Corrigida)</h1><p>Verifique as Funções de Dados:</p><ul><li>Uma coluna com o rótulo '${METRIC_COL_LABEL}'</li><li>Uma coluna com o rótulo '${ANSWER_COL_LABEL}'</li><li>Uma coluna com o rótulo '${VALUE_COL_LABEL}'</li><li>Pelo menos uma coluna de texto adicional para as categorias (ex: Anos Iniciais, Ensino Médio, etc.)</li></ul><p><b>Se este erro persistir, o ficheiro HTML pode não ter sido atualizado corretamente no SAS.</b></p>`);
         return;
     }
     
@@ -245,10 +246,11 @@ function onDataReceived(messageFromVA) {
     const allMetricsInData = [...new Set(DATA.flatMap(d => d.metrics.map(m => m.metric)))];
     const numMeasures = allMetricsInData.length;
 
+    // Retorna silenciosamente se não há métricas
     if (numMeasures === 0) {
-        d3.select("body").html("<h1>Sem dados para exibir</h1><p>Nenhuma métrica foi encontrada após o processamento.</p>");
         return;
     }
+
     const DELTA_ANGLE = (2 * Math.PI) / numMeasures;
 
     globalScale = d3.scaleLinear().domain([0, 1]).range([0, 1]).clamp(true);
