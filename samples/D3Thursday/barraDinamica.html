@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v3
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v4
 Funcionalidades:
 - Detecta a visão "Total" ou "Agrupada" com base nos valores da segunda coluna de dados.
-- Espera sempre 3 colunas de dados do SAS VA.
-- Remove controles de filtro internos, para ser controlado pelo SAS VA.
+- Remove linhas dos eixos para um visual mais limpo.
+- Ajusta a cor da barra "Total" com base no valor do filtro.
 - Cálculo percentual contextualizado.
 - Fundo transparente e design responsivo.
 -->
@@ -49,7 +49,6 @@ Funcionalidades:
     svg {
         background-color: transparent;
     }
-    .bar-total { fill: #52ae74; }
     .bar-feminino { fill: #52ae74; }
     .bar-masculino { fill: #2a8a4d; }
     .data-bar:hover {
@@ -64,13 +63,9 @@ Funcionalidades:
     .x-axis text {
         text-anchor: middle;
     }
-    .tick line {
-        stroke: #e0e0e0;
-        stroke-width: 0.5px;
-    }
-    .domain {
-        stroke: #b0b0b0;
-        stroke-width: 1px;
+    /* AJUSTE: Remove as linhas dos eixos e dos ticks */
+    .tick line, .domain {
+        display: none;
     }
     .value-label {
         font-family: 'Avenir Next', sans-serif;
@@ -159,7 +154,7 @@ function initializeChart() {
         va.contentUtil.setupResizeListener(() => onDataReceived());
     } else {
         // Fora do SAS VA, simula o recebimento de dados. Troque a variável para testar.
-        onDataReceived(SAMPLE_MESSAGE_GROUPED); 
+        onDataReceived(SAMPLE_MESSAGE_TOTAL); 
         window.addEventListener("resize", () => onDataReceived());
     }
 
@@ -173,10 +168,11 @@ function initializeChart() {
             return;
         }
 
-        // *** NOVA LÓGICA DE DETECÇÃO ***
-        // Verifica quantos valores únicos existem na segunda coluna (índice 1)
+        // *** LÓGICA DE DETECÇÃO ***
         const uniqueGroups = new Set(vaMessage.data.map(row => row[1]));
         const isGrouped = uniqueGroups.size > 1;
+        // AJUSTE: Captura o nome do grupo único para a visão "Total"
+        const singleGroupName = isGrouped ? null : uniqueGroups.values().next().value;
         
         // Limpa o container e prepara para renderizar
         const container = document.getElementById(chartContainerId);
@@ -202,19 +198,14 @@ function initializeChart() {
         if (isGrouped) {
             processAndRenderGrouped(svg, rawData, width, height);
         } else {
-            processAndRenderTotal(svg, rawData, width, height);
+            processAndRenderTotal(svg, rawData, width, height, singleGroupName);
         }
     }
 
     // --- PROCESSAMENTO E RENDERIZAÇÃO ---
 
-    function processAndRenderTotal(svg, rawData, width, height) {
-        // Agrega os dados, já que a visão é de total
-        const aggregatedData = d3.rollup(rawData, 
-            v => d3.sum(v, d => d.value), 
-            d => d.category
-        );
-        
+    function processAndRenderTotal(svg, rawData, width, height, singleGroupName) {
+        const aggregatedData = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.category);
         const data = Array.from(aggregatedData, ([category, value]) => ({ category, value }));
         const totalGeral = d3.sum(data, d => d.value);
 
@@ -222,7 +213,10 @@ function initializeChart() {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
         });
 
-        updateLegend(null); // Esconde a legenda
+        updateLegend(null);
+
+        // AJUSTE: Define a cor da barra com base no nome do filtro
+        const totalBarColor = (singleGroupName === 'Pessoa') ? '#2a8a4d' : '#52ae74';
 
         const xScale = d3.scaleBand().domain(data.map(d => d.category)).range([0, width]).padding(0.4);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
@@ -231,7 +225,8 @@ function initializeChart() {
         svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d => d3.format(".0%")(d)));
 
         svg.selectAll(".data-bar").data(data).enter().append("rect")
-            .attr("class", "data-bar bar-total")
+            .attr("class", "data-bar") // Classe 'bar-total' removida
+            .attr("fill", totalBarColor) // Cor definida dinamicamente
             .attr("x", d => xScale(d.category))
             .attr("y", d => yScale(d.percentage))
             .attr("width", xScale.bandwidth())
