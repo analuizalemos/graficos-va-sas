@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v6
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v7 (Final)
 Funcionalidades:
 - Exibe legenda para a visão "Total" e "Agrupada".
 - Reduz margens e paddings para maximizar a área do gráfico.
-- Ajusta a cor da barra "Total" com base no valor do filtro ('Vínculo*', 'Pessoa', etc).
+- AJUSTE FINAL: A cor da barra na visão "Total" é definida pelo RÓTULO DA MEDIDA (terceira coluna de dados).
 - Remove linhas dos eixos para um visual mais limpo.
 - Cálculo percentual contextualizado.
 - Fundo transparente e design responsivo.
@@ -33,7 +33,7 @@ Funcionalidades:
 <style>
     html, body {
         margin: 0;
-        padding: 0; /* AJUSTE: Padding zerado para maximizar espaço */
+        padding: 0;
         width: 100%;
         height: 100%;
         overflow: hidden;
@@ -89,7 +89,7 @@ Funcionalidades:
     }
     #legend {
         text-align: center;
-        padding: 2px 5px 5px 5px; /* AJUSTE: Distância reduzida do gráfico */
+        padding: 2px 5px 5px 5px;
         font-size: 14px;
         flex-shrink: 0;
     }
@@ -127,30 +127,25 @@ function initializeChart() {
     
     let vaMessage; 
 
-    const SAMPLE_MESSAGE_GROUPED = {
-        resultName: "groupedBarSample",
-        data: [
-            ["Ensino Médio Completo", "Feminino", 555],
-            ["Ensino Médio Completo", "Masculino", 250],
-            ["Ensino Superior Completo", "Feminino", 4000],
-            ["Ensino Superior Completo", "Masculino", 1350],
-        ],
-        columns: [ { label: "Escolaridade" }, { label: "Escolha o filtro" }, { label: "Vínculos" } ]
-    };
-     const SAMPLE_MESSAGE_TOTAL = {
+    // DADOS DE EXEMPLO ATUALIZADOS PARA REFLETIR A LÓGICA CORRETA
+    const SAMPLE_MESSAGE_VINCULO = {
         resultName: "totalBarSample",
         data: [
-            ["Ensino Médio Completo", "Vínculo*", 805],
-            ["Ensino Superior Completo", "Vínculo*", 5350],
+            ["Ensino Médio Completo", "Pessoa", 805], // A segunda coluna é 'Pessoa'
+            ["Ensino Superior Completo", "Pessoa", 5350],
         ],
-        columns: [ { label: "Escolaridade" }, { label: "Escolha o filtro" }, { label: "Vínculos" } ]
+        columns: [ 
+            { label: "Escolaridade" }, 
+            { label: "Escolha o filtro" }, 
+            { label: "Vínculos" } // O rótulo da medida é a chave
+        ]
     };
 
     if (window.self !== window.top && typeof va !== 'undefined' && va.messagingUtil) {
         va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
         va.contentUtil.setupResizeListener(() => onDataReceived());
     } else {
-        onDataReceived(SAMPLE_MESSAGE_TOTAL); 
+        onDataReceived(SAMPLE_MESSAGE_VINCULO); 
         window.addEventListener("resize", () => onDataReceived());
     }
 
@@ -203,8 +198,9 @@ function initializeChart() {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
         });
 
-        // AJUSTE: Se o filtro for 'Vínculo*', usa a cor do feminino, senão usa a do masculino.
-        const totalBarColor = (singleGroupName === 'Vínculo*') ? '#52ae74' : '#2a8a4d';
+        // *** AJUSTE FINAL: A cor é decidida pelo RÓTULO da medida (terceira coluna) ***
+        const measureLabel = vaMessage?.columns[2]?.label || "";
+        const totalBarColor = (measureLabel.toLowerCase().includes('vínculo')) ? '#52ae74' : '#2a8a4d';
 
         const legendColorScale = d3.scaleOrdinal()
             .domain([singleGroupName])
