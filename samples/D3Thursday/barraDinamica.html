@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v7 (Final)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v8 (Corrigido)
 Funcionalidades:
 - Exibe legenda para a visão "Total" e "Agrupada".
 - Reduz margens e paddings para maximizar a área do gráfico.
-- AJUSTE FINAL: A cor da barra na visão "Total" é definida pelo RÓTULO DA MEDIDA (terceira coluna de dados).
+- AJUSTE CORRIGIDO: A cor da barra na visão "Total" é definida pelo VALOR do filtro (segunda coluna de dados).
 - Remove linhas dos eixos para um visual mais limpo.
 - Cálculo percentual contextualizado.
 - Fundo transparente e design responsivo.
@@ -131,13 +131,13 @@ function initializeChart() {
     const SAMPLE_MESSAGE_VINCULO = {
         resultName: "totalBarSample",
         data: [
-            ["Ensino Médio Completo", "Pessoa", 805], // A segunda coluna é 'Pessoa'
-            ["Ensino Superior Completo", "Pessoa", 5350],
+            ["Ensino Médio completo", "Vínculo*", 805],
+            ["Ensino Superior completo", "Vínculo*", 5350],
         ],
         columns: [ 
             { label: "Escolaridade" }, 
-            { label: "Escolha o filtro" }, 
-            { label: "Vínculos" } // O rótulo da medida é a chave
+            { label: "Tipo de Contagem" }, 
+            { label: "Percentual de Vínculos" } 
         ]
     };
 
@@ -198,9 +198,9 @@ function initializeChart() {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
         });
 
-        // *** AJUSTE FINAL: A cor é decidida pelo RÓTULO da medida (terceira coluna) ***
-        const measureLabel = vaMessage?.columns[2]?.label || "";
-        const totalBarColor = (measureLabel.toLowerCase().includes('vínculo*')) ? '#52ae74' : '#2a8a4d';
+        // *** AJUSTE CORRIGIDO: A cor é decidida pelo VALOR do filtro (segunda coluna) ***
+        const groupNameStr = singleGroupName || "";
+        const totalBarColor = (groupNameStr.toLowerCase().includes('vínculo')) ? '#52ae74' : '#2a8a4d';
 
         const legendColorScale = d3.scaleOrdinal()
             .domain([singleGroupName])
