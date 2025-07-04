@@ -200,7 +200,7 @@ function initializeChart() {
 
         // *** AJUSTE FINAL: A cor é decidida pelo RÓTULO da medida (terceira coluna) ***
         const measureLabel = vaMessage?.columns[2]?.label || "";
-        const totalBarColor = (measureLabel.toLowerCase().includes('vínculo')) ? '#52ae74' : '#2a8a4d';
+        const totalBarColor = (measureLabel.toLowerCase().includes('vínculo*')) ? '#52ae74' : '#2a8a4d';
 
         const legendColorScale = d3.scaleOrdinal()
             .domain([singleGroupName])
