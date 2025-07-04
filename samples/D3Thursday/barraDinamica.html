@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v4
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v6
 Funcionalidades:
-- Detecta a visão "Total" ou "Agrupada" com base nos valores da segunda coluna de dados.
+- Exibe legenda para a visão "Total" e "Agrupada".
+- Reduz margens e paddings para maximizar a área do gráfico.
+- Ajusta a cor da barra "Total" com base no valor do filtro ('Vínculo*', 'Pessoa', etc).
 - Remove linhas dos eixos para um visual mais limpo.
-- Ajusta a cor da barra "Total" com base no valor do filtro.
 - Cálculo percentual contextualizado.
 - Fundo transparente e design responsivo.
 -->
@@ -32,7 +33,7 @@ Funcionalidades:
 <style>
     html, body {
         margin: 0;
-        padding: 0;
+        padding: 0; /* AJUSTE: Padding zerado para maximizar espaço */
         width: 100%;
         height: 100%;
         overflow: hidden;
@@ -63,7 +64,6 @@ Funcionalidades:
     .x-axis text {
         text-anchor: middle;
     }
-    /* AJUSTE: Remove as linhas dos eixos e dos ticks */
     .tick line, .domain {
         display: none;
     }
@@ -89,7 +89,7 @@ Funcionalidades:
     }
     #legend {
         text-align: center;
-        padding: 5px;
+        padding: 2px 5px 5px 5px; /* AJUSTE: Distância reduzida do gráfico */
         font-size: 14px;
         flex-shrink: 0;
     }
@@ -125,9 +125,8 @@ function initializeChart() {
     const chartContainerId = "chart-container";
     const tooltip = d3.select("#tooltip");
     
-    let vaMessage; // Armazena a última mensagem de dados recebida do VA
+    let vaMessage; 
 
-    // DADOS DE EXEMPLO para simular o ambiente fora do SAS VA
     const SAMPLE_MESSAGE_GROUPED = {
         resultName: "groupedBarSample",
         data: [
@@ -141,19 +140,16 @@ function initializeChart() {
      const SAMPLE_MESSAGE_TOTAL = {
         resultName: "totalBarSample",
         data: [
-            ["Ensino Médio Completo", "Pessoa", 805],
-            ["Ensino Superior Completo", "Pessoa", 5350],
+            ["Ensino Médio Completo", "Vínculo*", 805],
+            ["Ensino Superior Completo", "Vínculo*", 5350],
         ],
         columns: [ { label: "Escolaridade" }, { label: "Escolha o filtro" }, { label: "Vínculos" } ]
     };
-
-    // --- MANIPULADORES DE EVENTOS E INTEGRAÇÃO SAS VA ---
 
     if (window.self !== window.top && typeof va !== 'undefined' && va.messagingUtil) {
         va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
         va.contentUtil.setupResizeListener(() => onDataReceived());
     } else {
-        // Fora do SAS VA, simula o recebimento de dados. Troque a variável para testar.
         onDataReceived(SAMPLE_MESSAGE_TOTAL); 
         window.addEventListener("resize", () => onDataReceived());
     }
@@ -168,17 +164,14 @@ function initializeChart() {
             return;
         }
 
-        // *** LÓGICA DE DETECÇÃO ***
         const uniqueGroups = new Set(vaMessage.data.map(row => row[1]));
         const isGrouped = uniqueGroups.size > 1;
-        // AJUSTE: Captura o nome do grupo único para a visão "Total"
         const singleGroupName = isGrouped ? null : uniqueGroups.values().next().value;
         
-        // Limpa o container e prepara para renderizar
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
 
-        const margin = { top: 30, right: 20, bottom: 50, left: 60 };
+        const margin = { top: 20, right: 10, bottom: 30, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
 
@@ -188,7 +181,6 @@ function initializeChart() {
           .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
-        // Mapeia os dados brutos para um formato consistente
         const rawData = vaMessage.data.map(row => ({
             category: row[0],
             group: row[1],
@@ -202,8 +194,6 @@ function initializeChart() {
         }
     }
 
-    // --- PROCESSAMENTO E RENDERIZAÇÃO ---
-
     function processAndRenderTotal(svg, rawData, width, height, singleGroupName) {
         const aggregatedData = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.category);
         const data = Array.from(aggregatedData, ([category, value]) => ({ category, value }));
@@ -213,10 +203,13 @@ function initializeChart() {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
         });
 
-        updateLegend(null);
+        // AJUSTE: Se o filtro for 'Vínculo*', usa a cor do feminino, senão usa a do masculino.
+        const totalBarColor = (singleGroupName === 'Vínculo*') ? '#52ae74' : '#2a8a4d';
 
-        // AJUSTE: Define a cor da barra com base no nome do filtro
-        const totalBarColor = (singleGroupName === 'Pessoa') ? '#2a8a4d' : '#52ae74';
+        const legendColorScale = d3.scaleOrdinal()
+            .domain([singleGroupName])
+            .range([totalBarColor]);
+        updateLegend([singleGroupName], legendColorScale);
 
         const xScale = d3.scaleBand().domain(data.map(d => d.category)).range([0, width]).padding(0.4);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
@@ -225,13 +218,13 @@ function initializeChart() {
         svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d => d3.format(".0%")(d)));
 
         svg.selectAll(".data-bar").data(data).enter().append("rect")
-            .attr("class", "data-bar") // Classe 'bar-total' removida
-            .attr("fill", totalBarColor) // Cor definida dinamicamente
+            .attr("class", "data-bar")
+            .attr("fill", totalBarColor)
             .attr("x", d => xScale(d.category))
             .attr("y", d => yScale(d.percentage))
             .attr("width", xScale.bandwidth())
             .attr("height", d => height - yScale(d.percentage))
-            .on("mouseover", (event, d) => showTooltip(event, d, false))
+            .on("mouseover", (event, d) => showTooltip(event, d, false, singleGroupName))
             .on("mousemove", moveTooltip)
             .on("mouseout", hideTooltip);
 
@@ -280,9 +273,7 @@ function initializeChart() {
             .text(d => d3.format(".1%")(d.percentage).replace('.',','));
     }
 
-    // --- FUNÇÕES AUXILIARES (TOOLTIP, LEGENDA) ---
-
-    function showTooltip(event, d, isGrouped) {
+    function showTooltip(event, d, isGrouped, singleGroupName) {
         const columnLabels = {
             category: vaMessage?.columns[0]?.label || "Categoria",
             group: vaMessage?.columns[1]?.label || "Grupo",
@@ -292,6 +283,8 @@ function initializeChart() {
         let content = `<strong>${columnLabels.category}:</strong> ${d.category}<br>`;
         if (isGrouped) {
             content += `<strong>${columnLabels.group}:</strong> ${d.group}<br>`;
+        } else {
+            content += `<strong>${columnLabels.group}:</strong> ${singleGroupName}<br>`;
         }
         content += `<strong>${columnLabels.value}:</strong> ${d3.format(",")(d.value)}<br>`;
         content += `<strong>Percentual:</strong> ${d3.format(".1%")(d.percentage).replace('.',',')}`;
