@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v11 (Quebra de Linha Otimizada)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v13 (Espaçamento Ajustado)
 Funcionalidades:
-- AJUSTE: Rótulos do eixo X quebram a linha automaticamente e a distância para as barras foi aumentada.
+- AJUSTE: Aumentada a distância entre os rótulos do eixo X e as barras.
+- Rótulos do eixo X quebram a linha automaticamente.
 - Exibe legenda para a visão "Total" e "Agrupada".
-- Reduz margens e paddings para maximizar a área do gráfico.
-- A cor da barra na visão "Total" é definida pelo VALOR do filtro (segunda coluna de dados).
+- A cor da barra na visão "Total" é definida pelo VALOR do filtro.
 - Remove linhas dos eixos para um visual mais limpo.
 - Cálculo percentual contextualizado.
-- Fundo transparente e design responsivo.
 -->
 <html>
 <head>
@@ -161,7 +160,7 @@ function initializeChart() {
             lineNumber = 0,
             lineHeight = 1.1, // ems
             y = text.attr("y"),
-            dy = 0, // Ajuste inicial do dy
+            dy = 0,
             tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
         while (word = words.pop()) {
           line.push(word);
@@ -193,7 +192,7 @@ function initializeChart() {
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
 
-        const margin = { top: 20, right: 10, bottom: 80, left: 50 };
+        const margin = { top: 20, right: 10, bottom: 150, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
 
@@ -236,9 +235,8 @@ function initializeChart() {
         const xScale = d3.scaleBand().domain(data.map(d => d.category)).range([0, width]).padding(0.4);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
-        // AJUSTE: Aplica a quebra de linha e aumenta o espaçamento
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(15)) // Aumenta a distância
+           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(20)) // AJUSTE: Aumentado para 20
            .selectAll(".tick text")
            .call(wrap, xScale.bandwidth());
 
@@ -279,9 +277,8 @@ function initializeChart() {
         const x1Scale = d3.scaleBand().domain(groups).range([0, x0Scale.bandwidth()]).padding(0.1);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
-        // AJUSTE: Aplica a quebra de linha e aumenta o espaçamento
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(15)) // Aumenta a distância
+           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(20)) // AJUSTE: Aumentado para 20
            .selectAll(".tick text")
            .call(wrap, x0Scale.bandwidth());
 
