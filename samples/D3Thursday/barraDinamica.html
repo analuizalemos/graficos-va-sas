@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v8 (Corrigido)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v9 (Responsivo)
 Funcionalidades:
+- AJUSTE: Rótulos do eixo X quebram a linha automaticamente para evitar sobreposição.
 - Exibe legenda para a visão "Total" e "Agrupada".
 - Reduz margens e paddings para maximizar a área do gráfico.
-- AJUSTE CORRIGIDO: A cor da barra na visão "Total" é definida pelo VALOR do filtro (segunda coluna de dados).
+- A cor da barra na visão "Total" é definida pelo VALOR do filtro (segunda coluna de dados).
 - Remove linhas dos eixos para um visual mais limpo.
 - Cálculo percentual contextualizado.
 - Fundo transparente e design responsivo.
@@ -127,12 +128,14 @@ function initializeChart() {
     
     let vaMessage; 
 
-    // DADOS DE EXEMPLO ATUALIZADOS PARA REFLETIR A LÓGICA CORRETA
+    // DADOS DE EXEMPLO COM RÓTULOS LONGOS PARA TESTAR A QUEBRA DE LINHA
     const SAMPLE_MESSAGE_VINCULO = {
         resultName: "totalBarSample",
         data: [
-            ["Ensino Médio completo", "Vínculo*", 805],
-            ["Ensino Superior completo", "Vínculo*", 5350],
+            ["Ensino Médio completo e nada mais", "Vínculo*", 805],
+            ["Ensino Superior completo ou com pós-graduação", "Vínculo*", 5350],
+            ["Apenas o fundamental completo para o gestor", "Vínculo*", 250],
+            ["Categoria com nome extremamente longo para teste", "Vínculo*", 150],
         ],
         columns: [ 
             { label: "Escolaridade" }, 
@@ -147,6 +150,31 @@ function initializeChart() {
     } else {
         onDataReceived(SAMPLE_MESSAGE_VINCULO); 
         window.addEventListener("resize", () => onDataReceived());
+    }
+
+    // *** NOVA FUNÇÃO PARA QUEBRA DE LINHA (TEXT WRAPPING) ***
+    function wrap(text, width) {
+      text.each(function() {
+        var text = d3.select(this),
+            words = text.text().split(/\s+/).reverse(),
+            word,
+            line = [],
+            lineNumber = 0,
+            lineHeight = 1.1, // ems
+            y = text.attr("y"),
+            dy = 0,
+            tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+        while (word = words.pop()) {
+          line.push(word);
+          tspan.text(line.join(" "));
+          if (tspan.node().getComputedTextLength() > width) {
+            line.pop();
+            tspan.text(line.join(" "));
+            line = [word];
+            tspan = text.append("tspan").attr("x", 0).attr("y", y).attr("dy", ++lineNumber * lineHeight + "em").text(word);
+          }
+        }
+      });
     }
 
     function onDataReceived(messageFromVA) {
@@ -166,7 +194,8 @@ function initializeChart() {
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
 
-        const margin = { top: 20, right: 10, bottom: 30, left: 50 };
+        // AJUSTE: Aumenta a margem inferior para dar espaço aos rótulos com quebra de linha
+        const margin = { top: 20, right: 10, bottom: 80, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
 
@@ -198,7 +227,6 @@ function initializeChart() {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
         });
 
-        // *** AJUSTE CORRIGIDO: A cor é decidida pelo VALOR do filtro (segunda coluna) ***
         const groupNameStr = singleGroupName || "";
         const totalBarColor = (groupNameStr.toLowerCase().includes('vínculo')) ? '#52ae74' : '#2a8a4d';
 
@@ -210,7 +238,12 @@ function initializeChart() {
         const xScale = d3.scaleBand().domain(data.map(d => d.category)).range([0, width]).padding(0.4);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
-        svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`).call(d3.axisBottom(xScale).tickSize(0).tickPadding(10));
+        // AJUSTE: Aplica a função de quebra de linha nos rótulos do eixo X
+        svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
+           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(10))
+           .selectAll(".tick text")
+           .call(wrap, xScale.bandwidth());
+
         svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d => d3.format(".0%")(d)));
 
         svg.selectAll(".data-bar").data(data).enter().append("rect")
@@ -248,7 +281,12 @@ function initializeChart() {
         const x1Scale = d3.scaleBand().domain(groups).range([0, x0Scale.bandwidth()]).padding(0.1);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
-        svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(10));
+        // AJUSTE: Aplica a função de quebra de linha nos rótulos do eixo X
+        svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
+           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(10))
+           .selectAll(".tick text")
+           .call(wrap, x0Scale.bandwidth());
+
         svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d => d3.format(".0%")(d)));
 
         svg.selectAll(".category-group").data(data).enter().append("rect")
