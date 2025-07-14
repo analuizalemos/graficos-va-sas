@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v9 (Responsivo)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v11 (Quebra de Linha Otimizada)
 Funcionalidades:
-- AJUSTE: Rótulos do eixo X quebram a linha automaticamente para evitar sobreposição.
+- AJUSTE: Rótulos do eixo X quebram a linha automaticamente e a distância para as barras foi aumentada.
 - Exibe legenda para a visão "Total" e "Agrupada".
 - Reduz margens e paddings para maximizar a área do gráfico.
 - A cor da barra na visão "Total" é definida pelo VALOR do filtro (segunda coluna de dados).
@@ -128,14 +128,13 @@ function initializeChart() {
     
     let vaMessage; 
 
-    // DADOS DE EXEMPLO COM RÓTULOS LONGOS PARA TESTAR A QUEBRA DE LINHA
     const SAMPLE_MESSAGE_VINCULO = {
         resultName: "totalBarSample",
         data: [
-            ["Ensino Médio completo e nada mais", "Vínculo*", 805],
-            ["Ensino Superior completo ou com pós-graduação", "Vínculo*", 5350],
-            ["Apenas o fundamental completo para o gestor", "Vínculo*", 250],
-            ["Categoria com nome extremamente longo para teste", "Vínculo*", 150],
+            ["Concurso público específico para o cargo de gestor escolar (apenas escolas públicas)", "Vínculo*", 150],
+            ["Exclusivamente por indicação/escolha da gestão (escolas públicas e privadas)", "Vínculo*", 5350],
+            ["Exclusivamente por processo eleitoral com a participação da comunidade escolar (apenas escolas públicas)", "Vínculo*", 805],
+            ["Outro (escolas públicas e privadas)", "Vínculo*", 250],
         ],
         columns: [ 
             { label: "Escolaridade" }, 
@@ -152,7 +151,7 @@ function initializeChart() {
         window.addEventListener("resize", () => onDataReceived());
     }
 
-    // *** NOVA FUNÇÃO PARA QUEBRA DE LINHA (TEXT WRAPPING) ***
+    // *** FUNÇÃO PARA QUEBRA DE LINHA (TEXT WRAPPING) ***
     function wrap(text, width) {
       text.each(function() {
         var text = d3.select(this),
@@ -162,12 +161,12 @@ function initializeChart() {
             lineNumber = 0,
             lineHeight = 1.1, // ems
             y = text.attr("y"),
-            dy = 0,
+            dy = 0, // Ajuste inicial do dy
             tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
         while (word = words.pop()) {
           line.push(word);
           tspan.text(line.join(" "));
-          if (tspan.node().getComputedTextLength() > width) {
+          if (tspan.node().getComputedTextLength() > width && line.length > 1) {
             line.pop();
             tspan.text(line.join(" "));
             line = [word];
@@ -194,7 +193,6 @@ function initializeChart() {
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
 
-        // AJUSTE: Aumenta a margem inferior para dar espaço aos rótulos com quebra de linha
         const margin = { top: 20, right: 10, bottom: 80, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
@@ -238,9 +236,9 @@ function initializeChart() {
         const xScale = d3.scaleBand().domain(data.map(d => d.category)).range([0, width]).padding(0.4);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
-        // AJUSTE: Aplica a função de quebra de linha nos rótulos do eixo X
+        // AJUSTE: Aplica a quebra de linha e aumenta o espaçamento
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(10))
+           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(15)) // Aumenta a distância
            .selectAll(".tick text")
            .call(wrap, xScale.bandwidth());
 
@@ -281,9 +279,9 @@ function initializeChart() {
         const x1Scale = d3.scaleBand().domain(groups).range([0, x0Scale.bandwidth()]).padding(0.1);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
-        // AJUSTE: Aplica a função de quebra de linha nos rótulos do eixo X
+        // AJUSTE: Aplica a quebra de linha e aumenta o espaçamento
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(10))
+           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(15)) // Aumenta a distância
            .selectAll(".tick text")
            .call(wrap, x0Scale.bandwidth());
 
