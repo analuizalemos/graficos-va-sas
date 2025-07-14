@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v14 (Espaçamento Otimizado)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v15 (Espaçamento Final)
 Funcionalidades:
-- AJUSTE: Otimizada a distância entre os rótulos do eixo X e a legenda.
+- AJUSTE: Distância entre os rótulos do eixo X e a legenda foi reduzida ao máximo.
 - Rótulos do eixo X quebram a linha automaticamente.
 - Exibe legenda para a visão "Total" e "Agrupada".
 - A cor da barra na visão "Total" é definida pelo VALOR do filtro.
@@ -192,8 +192,8 @@ function initializeChart() {
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
 
-        // AJUSTE: Margem inferior otimizada para os rótulos.
-        const margin = { top: 20, right: 10, bottom: 100, left: 50 };
+        // AJUSTE: Margem inferior reduzida para aproximar a legenda.
+        const margin = { top: 20, right: 10, bottom: 80, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
 
