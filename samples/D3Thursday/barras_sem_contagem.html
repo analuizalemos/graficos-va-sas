@@ -254,7 +254,7 @@ function initializeChart() {
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(12)) 
+           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(15)) 
            .selectAll(".tick text")
            .call(wrap, xScale.bandwidth());
 
@@ -296,7 +296,7 @@ function initializeChart() {
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(12))
+           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(15))
            .selectAll(".tick text")
            .call(wrap, x0Scale.bandwidth());
 
