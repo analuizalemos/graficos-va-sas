@@ -254,9 +254,8 @@ function initializeChart() {
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(8)) 
+           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(12)) 
            .selectAll(".tick text")
-           .attr("y", 8)
            .call(wrap, xScale.bandwidth());
 
         svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d => d3.format(".0%")(d)));
@@ -297,9 +296,8 @@ function initializeChart() {
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(8))
+           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(12))
            .selectAll(".tick text")
-           .attr("y", 8)
            .call(wrap, x0Scale.bandwidth());
 
         svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d => d3.format(".0%")(d)));
@@ -358,6 +356,7 @@ function initializeChart() {
 
         if (!groups) return;
 
+        // Remove qualquer título que possa existir na legenda
         const legendItems = legendContainer.selectAll(".legend-item").data(groups).enter().append("div").attr("class", "legend-item");
         legendItems.append("div").attr("class", "legend-color").style("background-color", d => colorScale(d));
         legendItems.append("span").text(d => d);
