@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 KPI Card Simplificado para SAS Visual Analytics - Variação em Pontos Percentuais
-Recebe: Título, Ano e Medida (em percentual)
+Recebe: Título, Ano, Medida (em percentual) e opcionalmente um valor real para o tooltip.
 Calcula automaticamente as variações em p.p.
 Estilo alinhado com o card de variação percentual.
 -->
@@ -138,36 +138,22 @@ function initializeKPICard() {
       "currency": ["R$", " "]
     });
 
-    // Formata os valores do gráfico para serem compactos
-    function formatChartLabel(value) {
-        if (value >= 1000000000) {
-            return d3.format(",.1f")(value / 1000000000) + ' bi';
-        }
-        if (value >= 1000000) {
-            return d3.format(",.1f")(value / 1000000) + ' mi';
-        }
-        if (value >= 1000) {
-            return d3.format(",.0f")(Math.floor(value / 1000)) + " mil";
-        }
-        return d3.format(",.0f")(value);
-    }
-    
-    // Formata valores para o tooltip
-    function formatValueForTooltip(value) {
-        if (value >= 1000000) return formatChartLabel(value);
-        return d3.format(",")(Math.round(value));
-    }
-
     /*******************************************************
      * FUNÇÕES DO TOOLTIP
      *******************************************************/
     function showTooltip(event, data) {
-        const periodLabel = processedData.columnLabels.period || "Período";
-        const valueLabel = processedData.columnLabels.value || "Valor";
+        const valueLabel = processedData.columnLabels.value || "Percentual";
+        const realValueLabel = processedData.columnLabels.realValue;
 
-        const formattedValue = formatValueForTooltip(data.value);
-        const tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
-                               `${valueLabel}: ${formattedValue}`;
+        const formattedPercent = d3.format(".1f")(data.value) + "%";
+
+        let tooltipContent = `<b>${data.period}</b><br/>` + 
+                               `${valueLabel}: ${formattedPercent}`;
+
+        if (realValueLabel && data.realValue !== null) {
+            const formattedReal = d3.format(",.0f")(data.realValue);
+            tooltipContent += `<br/>${realValueLabel}: ${formattedReal}`;
+        }
         
         tooltip
             .style("display", "block")
@@ -186,16 +172,17 @@ function initializeKPICard() {
     const SAMPLE_MESSAGE = {
         resultName: "kpiCardSimpleSample",
         data: [
-            ["Taxa de Acesso à Internet", 2020, 78.5],
-            ["Taxa de Acesso à Internet", 2021, 81.2],
-            ["Taxa de Acesso à Internet", 2022, 84.1],
-            ["Taxa de Acesso à Internet", 2023, 87.3],
-            ["Taxa de Acesso à Internet", 2024, 85.8],
+            ["Taxa de Acesso à Internet", 2020, 78.5, 5800],
+            ["Taxa de Acesso à Internet", 2021, 81.2, 6100],
+            ["Taxa de Acesso à Internet", 2022, 84.1, 6229],
+            ["Taxa de Acesso à Internet", 2023, 87.3, 6500],
+            ["Taxa de Acesso à Internet", 2024, 85.8, 6400],
         ],
         columns: [
             { label: "Métrica", type: "string" },
             { label: "Ano", type: "number" },
-            { label: "Percentual", type: "number" }
+            { label: "Percentual", type: "number" },
+            { label: "Total de Docentes", type: "number" } // Nova coluna para o valor real
         ]
     };
 
@@ -249,15 +236,18 @@ function initializeKPICard() {
         const columns = messageFromVA.columns;
         const allData = messageFromVA.data;
         const titulo = allData[0][0];
+        const hasRealValueColumn = columns.length > 3;
 
         // Agrupa e ordena os dados por período
         const aggregatedByPeriod = d3.group(allData, d => d[1]);
         
         const calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
             const totalValue = d3.sum(values, d => d[2]);
+            const totalRealValue = hasRealValueColumn ? d3.sum(values, d => d[3]) : null;
             return {
                 periodo: +period,
-                value: totalValue
+                value: totalValue,
+                realValue: totalRealValue
             };
         }).sort((a, b) => a.periodo - b.periodo);
         
@@ -267,7 +257,6 @@ function initializeKPICard() {
         const primeiroValor = values[0];
         const penultimoValor = values.length > 1 ? values[values.length - 2] : null;
 
-        // Assumindo que os valores já são percentuais (0-100), calculamos em pontos percentuais
         const variacaoPeriodo = ultimoValor - primeiroValor;
         const variacaoAnterior = penultimoValor !== null ? ultimoValor - penultimoValor : 0;
 
@@ -280,14 +269,14 @@ function initializeKPICard() {
             mediaAnual = d3.mean(variacoesAnuais) || 0;
         }
 
-        // Formatação para pontos percentuais
         const formatPontoPercentual = (val) => d3.format("+.1f")(val) + " p.p.";
 
         processedData = {
             titulo: titulo,
             columnLabels: {
                 period: columns[1].label,
-                value: columns[2].label
+                value: columns[2].label,
+                realValue: hasRealValueColumn ? columns[3].label : null
             },
             valorPrincipal: {
                 label: "Variação no Período",
@@ -322,7 +311,6 @@ function initializeKPICard() {
         const width = document.body.clientWidth;
         const height = document.body.clientHeight;
         
-        // Layout otimizado para formato 520x200 (aspect ratio ~2.6:1)
         const isCompactFormat = width <= 600 && height <= 250;
         
         d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
@@ -338,11 +326,9 @@ function initializeKPICard() {
 
         mainGroup = svg.append("g");
         
-        // Padding ajustado para formato compacto
         const padding = isCompactFormat ? Math.max(width * 0.012, 6) : Math.max(width * 0.015, 8);
         const contentWidth = width - (padding * 2);
         
-        // Tamanhos de fonte otimizados para 520x200
         let titleFontSize, labelFontSize, valueFontSize, titleHeight;
         
         if (isCompactFormat) {
@@ -359,13 +345,11 @@ function initializeKPICard() {
 
         const contentSectionHeight = height - titleHeight - padding;
         
-        // Proporções ajustadas para formato horizontal compacto
         let chartWidthRatio = isCompactFormat ? 0.58 : 0.7;
         
         const chartWidth = Math.max(contentWidth * chartWidthRatio, isCompactFormat ? 140 : 180);
         const variationsWidth = contentWidth - chartWidth - padding;
 
-        // Título
         mainGroup.append("text")
             .attr("class", "title-text")
             .attr("x", width / 2)
@@ -396,7 +380,8 @@ function initializeKPICard() {
                     x, 
                     y: innerChartPadding + innerHeight * (1 - normalizedY), 
                     value: d.value,
-                    period: d.periodo 
+                    period: d.periodo,
+                    realValue: d.realValue
                 };
             });
 
@@ -437,7 +422,6 @@ function initializeKPICard() {
 
             const yearLabelFontSize = isCompactFormat ? Math.min(Math.max(height * 0.065, 8), 11) : Math.min(Math.max(height * 0.04, 10), width * 0.025, 15);
             
-            // Labels dos anos (removidos os labels dos valores para reduzir poluição)
             chartGroup.selectAll(".year-label")
                 .data(lineData)
                 .enter()
@@ -452,7 +436,6 @@ function initializeKPICard() {
                 .text(d => d.period);
         }
 
-        // Separador vertical
         const separatorX = padding + chartWidth + (padding / 2);
         mainGroup.append("line")
             .attr("x1", separatorX)
@@ -462,7 +445,6 @@ function initializeKPICard() {
             .attr("stroke", "rgba(45,80,22,0.3)")
             .attr("stroke-width", 1);
 
-        // Seção das variações
         const variationsX = separatorX + (padding / 2);
         const variationsGroup = mainGroup.append("g").attr("transform", `translate(${variationsX}, ${chartY})`);
         
@@ -481,7 +463,6 @@ function initializeKPICard() {
         variations.forEach((variation, i) => {
             const yPos = variationStartY + (i * variationBlockHeight);
             
-            // Label da variação
             variationsGroup.append("text")
                 .attr("class", "secondary-label-text")
                 .attr("x", variationCenterX)
@@ -489,7 +470,6 @@ function initializeKPICard() {
                 .attr("font-size", labelFontSize + "px")
                 .text(variation.label);
                 
-            // Valor da variação
             variationsGroup.append("text")
                 .attr("class", "secondary-value-text")
                 .attr("x", variationCenterX)
