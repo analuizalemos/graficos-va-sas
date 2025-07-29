@@ -351,10 +351,10 @@ function initializeKPICard() {
         let titleFontSize, labelFontSize, valueFontSize, titleHeight;
         
         if (isCompactFormat) {
-            titleFontSize = Math.min(Math.max(height * 0.09, 11), 14);
-            labelFontSize = Math.min(Math.max(height * 0.08, 9), 12);
-            valueFontSize = Math.min(Math.max(height * 0.12, 11), 16);
-            titleHeight = Math.max(height * 0.15, 22);
+            titleFontSize = Math.min(Math.max(height * 0.08, 11), 14);
+            labelFontSize = Math.min(Math.max(height * 0.09, 10), 13);
+            valueFontSize = Math.min(Math.max(height * 0.14, 14), 18);
+            titleHeight = Math.max(height * 0.12, 18);
         } else {
             titleFontSize = Math.min(Math.max(height * 0.07, 16), width * 0.045, 24);
             labelFontSize = Math.min(Math.max(height * 0.07, 16), width * 0.04, 24);
@@ -365,7 +365,7 @@ function initializeKPICard() {
         const contentSectionHeight = height - titleHeight - padding;
         
         // Proporções ajustadas para formato horizontal compacto
-        let chartWidthRatio = isCompactFormat ? 0.6 : 0.7;
+        let chartWidthRatio = isCompactFormat ? 0.58 : 0.7;
         
         const chartWidth = Math.max(contentWidth * chartWidthRatio, isCompactFormat ? 140 : 180);
         const variationsWidth = contentWidth - chartWidth - padding;
@@ -389,9 +389,9 @@ function initializeKPICard() {
             const maxVal = d3.max(values);
             const range = maxVal - minVal || 1;
             
-            const innerChartPadding = isCompactFormat ? Math.max(chartWidth * 0.03, 6) : Math.max(chartWidth * 0.04, 10);
+            const innerChartPadding = isCompactFormat ? Math.max(chartWidth * 0.025, 5) : Math.max(chartWidth * 0.04, 10);
             const innerWidth = chartWidth - (innerChartPadding * 2);
-            const chartHeight = isCompactFormat ? Math.max(contentSectionHeight * 0.65, 60) : Math.max(contentSectionHeight * 0.75, 80);
+            const chartHeight = isCompactFormat ? Math.max(contentSectionHeight * 0.85, 85) : Math.max(contentSectionHeight * 0.75, 80);
             const innerHeight = chartHeight - (innerChartPadding * 2);
             
             const lineData = dados.map((d, i) => {
@@ -440,30 +440,16 @@ function initializeKPICard() {
                 })
                 .on("mousemove", showTooltip);
 
-            const yearLabelFontSize = isCompactFormat ? Math.min(Math.max(height * 0.06, 7), 10) : Math.min(Math.max(height * 0.04, 10), width * 0.025, 15);
+            const yearLabelFontSize = isCompactFormat ? Math.min(Math.max(height * 0.065, 8), 11) : Math.min(Math.max(height * 0.04, 10), width * 0.025, 15);
             
-            // Labels dos valores nos pontos
-            chartGroup.selectAll(".value-label")
-                .data(lineData)
-                .enter()
-                .append("text")
-                .attr("class", "value-label")
-                .attr("x", d => d.x)
-                .attr("y", d => d.y - Math.max(6, height * 0.012))
-                .attr("font-size", yearLabelFontSize + "px")
-                .attr("fill", "#1a4f0e")
-                .attr("text-anchor", "middle")
-                .attr("font-weight", "700")
-                .text(d => formatChartLabel(d.value));
-            
-            // Labels dos anos
+            // Labels dos anos (removemos os labels dos valores para reduzir poluição)
             chartGroup.selectAll(".year-label")
                 .data(lineData)
                 .enter()
                 .append("text")
                 .attr("class", "year-label")
                 .attr("x", d => d.x)
-                .attr("y", chartHeight + Math.max(10, height * 0.015))
+                .attr("y", chartHeight + Math.max(12, height * 0.018))
                 .attr("font-size", yearLabelFontSize + "px")
                 .attr("fill", "#2d5016")
                 .attr("text-anchor", "middle")
@@ -485,10 +471,10 @@ function initializeKPICard() {
         const variationsX = separatorX + (padding / 2);
         const variationsGroup = mainGroup.append("g").attr("transform", `translate(${variationsX}, ${chartY})`);
         
-        const availableVariationsHeight = contentSectionHeight * 0.85;
+        const availableVariationsHeight = contentSectionHeight * 0.95;
         const variationBlockHeight = availableVariationsHeight / 3;
-        const variationStartY = contentSectionHeight * 0.08;
-        const labelValueSpacing = isCompactFormat ? Math.max(variationBlockHeight * 0.4, 10) : Math.max(variationBlockHeight * 0.35, 20);
+        const variationStartY = contentSectionHeight * 0.03;
+        const labelValueSpacing = isCompactFormat ? Math.max(variationBlockHeight * 0.45, 12) : Math.max(variationBlockHeight * 0.35, 20);
         const variationCenterX = variationsWidth / 2;
 
         const variations = [
