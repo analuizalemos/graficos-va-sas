@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <!--
-KPI Card Simplificado para SAS Visual Analytics.
-Recebe apenas: Título, Ano e Medida
-Calcula automaticamente as variações entre períodos.
+KPI Card Simplificado para SAS Visual Analytics - Variação em Pontos Percentuais
+Recebe: Título, Ano, Medida (em percentual) e opcionalmente um valor real para o tooltip.
+Calcula automaticamente as variações em p.p.
+Estilo alinhado com o card de variação percentual.
 -->
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>KPI Card Simplificado para SAS VA</title>
+    <title>KPI Card Pontos Percentuais para SAS VA</title>
     <!-- Import D3.js -->
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
@@ -70,16 +71,16 @@ Calcula automaticamente as variações entre períodos.
         position: absolute;
         background-color: rgba(26, 79, 14, 0.95);
         color: white;
-        padding: 10px 14px;
-        border-radius: 6px;
-        font-size: 13px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 11px;
         font-weight: 600;
         pointer-events: none;
         z-index: 1000;
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         border: 1px solid rgba(255,255,255,0.2);
         display: none;
-        line-height: 1.4;
+        line-height: 1.3;
     }
 
     .tooltip::after {
@@ -87,8 +88,8 @@ Calcula automaticamente as variações entre períodos.
         position: absolute;
         top: 100%;
         left: 50%;
-        margin-left: -5px;
-        border: 5px solid transparent;
+        margin-left: -4px;
+        border: 4px solid transparent;
         border-top-color: rgba(26, 79, 14, 0.95);
     }
 </style>
@@ -137,56 +138,28 @@ function initializeKPICard() {
       "currency": ["R$", " "]
     });
 
-    // Formata os valores do gráfico para serem compactos
-    function formatChartLabel(value) {
-        if (value >= 1000000000) {
-            return d3.format(",.1f")(value / 1000000000) + ' bi';
-        }
-        if (value >= 1000000) {
-            return d3.format(",.1f")(value / 1000000) + ' mi';
-        }
-        if (value >= 1000) {
-            return d3.format(",.0f")(Math.floor(value / 1000)) + " mil";
-        }
-        return d3.format(",.0f")(value);
-    }
-    
-    // Formata valores para o tooltip
-    function formatValueForTooltip(value) {
-        if (value >= 1000000) return formatChartLabel(value);
-        return d3.format(",")(Math.round(value));
-    }
-
-    // Formata variações com sinal e formatação adequada
-    function formatVariation(value) {
-        if (Math.abs(value) >= 1000000000) {
-            return d3.format("+,.1f")(value / 1000000000) + ' bi';
-        }
-        if (Math.abs(value) >= 1000000) {
-            return d3.format("+,.1f")(value / 1000000) + ' mi';
-        }
-        if (Math.abs(value) >= 1000) {
-            return d3.format("+,.0f")(Math.floor(value / 1000)) + " mil";
-        }
-        return d3.format("+,.0f")(value);
-    }
-
     /*******************************************************
      * FUNÇÕES DO TOOLTIP
      *******************************************************/
     function showTooltip(event, data) {
-        const periodLabel = processedData.columnLabels.period || "Período";
-        const valueLabel = processedData.columnLabels.value || "Valor";
+        const valueLabel = processedData.columnLabels.value || "Percentual";
+        const realValueLabel = processedData.columnLabels.realValue;
 
-        const formattedValue = formatValueForTooltip(data.value);
-        const tooltipContent = `${periodLabel}: ${data.period}<br/>` + 
-                             `${valueLabel}: ${formattedValue}`;
+        const formattedPercent = d3.format(".1f")(data.value) + "%";
+
+        let tooltipContent = `<b>${data.period}</b><br/>` + 
+                               `${valueLabel}: ${formattedPercent}`;
+
+        if (realValueLabel && data.realValue !== null) {
+            const formattedReal = d3.format(",.0f")(data.realValue);
+            tooltipContent += `<br/>${realValueLabel}: ${formattedReal}`;
+        }
         
         tooltip
             .style("display", "block")
             .html(tooltipContent)
             .style("left", (event.pageX - tooltip.node().offsetWidth / 2) + "px")
-            .style("top", (event.pageY - tooltip.node().offsetHeight - 10) + "px");
+            .style("top", (event.pageY - tooltip.node().offsetHeight - 8) + "px");
     }
 
     function hideTooltip() {
@@ -199,16 +172,17 @@ function initializeKPICard() {
     const SAMPLE_MESSAGE = {
         resultName: "kpiCardSimpleSample",
         data: [
-            ["Taxa de Acesso à Internet", 2020, 78.5],
-            ["Taxa de Acesso à Internet", 2021, 81.2],
-            ["Taxa de Acesso à Internet", 2022, 84.1],
-            ["Taxa de Acesso à Internet", 2023, 87.3],
-            ["Taxa de Acesso à Internet", 2024, 85.8],
+            ["Taxa de Acesso à Internet", 2020, 78.5, 5800],
+            ["Taxa de Acesso à Internet", 2021, 81.2, 6100],
+            ["Taxa de Acesso à Internet", 2022, 84.1, 6229],
+            ["Taxa de Acesso à Internet", 2023, 87.3, 6500],
+            ["Taxa de Acesso à Internet", 2024, 85.8, 6400],
         ],
         columns: [
             { label: "Métrica", type: "string" },
             { label: "Ano", type: "number" },
-            { label: "Percentual", type: "number" }
+            { label: "Percentual", type: "number" },
+            { label: "Total de Docentes", type: "number" } // Nova coluna para o valor real
         ]
     };
 
@@ -262,15 +236,18 @@ function initializeKPICard() {
         const columns = messageFromVA.columns;
         const allData = messageFromVA.data;
         const titulo = allData[0][0];
+        const hasRealValueColumn = columns.length > 3;
 
         // Agrupa e ordena os dados por período
         const aggregatedByPeriod = d3.group(allData, d => d[1]);
         
         const calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
             const totalValue = d3.sum(values, d => d[2]);
+            const totalRealValue = hasRealValueColumn ? d3.sum(values, d => d[3]) : null;
             return {
                 periodo: +period,
-                value: totalValue
+                value: totalValue,
+                realValue: totalRealValue
             };
         }).sort((a, b) => a.periodo - b.periodo);
         
@@ -280,7 +257,6 @@ function initializeKPICard() {
         const primeiroValor = values[0];
         const penultimoValor = values.length > 1 ? values[values.length - 2] : null;
 
-        // Assumindo que os valores já são percentuais (0-100), calculamos em pontos percentuais
         const variacaoPeriodo = ultimoValor - primeiroValor;
         const variacaoAnterior = penultimoValor !== null ? ultimoValor - penultimoValor : 0;
 
@@ -293,14 +269,14 @@ function initializeKPICard() {
             mediaAnual = d3.mean(variacoesAnuais) || 0;
         }
 
-        // Formatação para pontos percentuais
         const formatPontoPercentual = (val) => d3.format("+.1f")(val) + " p.p.";
 
         processedData = {
             titulo: titulo,
             columnLabels: {
                 period: columns[1].label,
-                value: columns[2].label
+                value: columns[2].label,
+                realValue: hasRealValueColumn ? columns[3].label : null
             },
             valorPrincipal: {
                 label: "Variação no Período",
@@ -327,14 +303,15 @@ function initializeKPICard() {
     }
 
     /*******************************************************
-     * FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO
+     * FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO - OTIMIZADA PARA 520x200
      *******************************************************/
     function renderCard() {
         if (!processedData) return;
         
         const width = document.body.clientWidth;
         const height = document.body.clientHeight;
-        const isCompactHorizontal = (width / height) > 2.5;
+        
+        const isCompactFormat = width <= 600 && height <= 250;
         
         d3.select("#" + SVG_CONTAINER_ID).selectAll("*").remove();
 
@@ -345,20 +322,20 @@ function initializeKPICard() {
         gradient.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff");
         gradient.append("stop").attr("offset", "100%").attr("stop-color", "#4CAF50");
 
-        svg.append("rect").attr("width", width).attr("height", height).attr("rx", 8).attr("fill", "url(#cardGradient)").attr("stroke", "#d0d0d0").attr("stroke-width", 1);
+        svg.append("rect").attr("width", width).attr("height", height).attr("rx", 6).attr("fill", "url(#cardGradient)").attr("stroke", "#d0d0d0").attr("stroke-width", 1);
 
         mainGroup = svg.append("g");
         
-        const padding = Math.max(width * 0.015, 8);
+        const padding = isCompactFormat ? Math.max(width * 0.012, 6) : Math.max(width * 0.015, 8);
         const contentWidth = width - (padding * 2);
         
         let titleFontSize, labelFontSize, valueFontSize, titleHeight;
         
-        if (isCompactHorizontal) {
-            titleFontSize = Math.min(Math.max(height * 0.1, 12), 16);
-            labelFontSize = Math.min(Math.max(height * 0.12, 10), 16);
-            valueFontSize = Math.min(Math.max(height * 0.16, 12), 20);
-            titleHeight = Math.max(height * 0.18, 25);
+        if (isCompactFormat) {
+            titleFontSize = Math.min(Math.max(height * 0.08, 11), 14);
+            labelFontSize = Math.min(Math.max(height * 0.09, 10), 13);
+            valueFontSize = Math.min(Math.max(height * 0.14, 14), 18);
+            titleHeight = Math.max(height * 0.12, 18);
         } else {
             titleFontSize = Math.min(Math.max(height * 0.07, 16), width * 0.045, 24);
             labelFontSize = Math.min(Math.max(height * 0.07, 16), width * 0.04, 24);
@@ -368,12 +345,17 @@ function initializeKPICard() {
 
         const contentSectionHeight = height - titleHeight - padding;
         
-        let chartWidthRatio = isCompactHorizontal ? 0.65 : 0.7;
+        let chartWidthRatio = isCompactFormat ? 0.58 : 0.7;
         
-        const chartWidth = Math.max(contentWidth * chartWidthRatio, 180);
+        const chartWidth = Math.max(contentWidth * chartWidthRatio, isCompactFormat ? 140 : 180);
         const variationsWidth = contentWidth - chartWidth - padding;
 
-        mainGroup.append("text").attr("class", "title-text").attr("x", width / 2).attr("y", padding + titleFontSize * 0.8).attr("font-size", titleFontSize + "px").text(processedData.titulo);
+        mainGroup.append("text")
+            .attr("class", "title-text")
+            .attr("x", width / 2)
+            .attr("y", padding + titleFontSize * 0.8)
+            .attr("font-size", titleFontSize + "px")
+            .text(processedData.titulo);
 
         const chartY = titleHeight;
         const chartGroup = mainGroup.append("g").attr("transform", `translate(${padding}, ${chartY})`);
@@ -386,9 +368,9 @@ function initializeKPICard() {
             const maxVal = d3.max(values);
             const range = maxVal - minVal || 1;
             
-            const innerChartPadding = Math.max(chartWidth * 0.04, 10);
+            const innerChartPadding = isCompactFormat ? Math.max(chartWidth * 0.025, 5) : Math.max(chartWidth * 0.04, 10);
             const innerWidth = chartWidth - (innerChartPadding * 2);
-            const chartHeight = Math.max(contentSectionHeight * 0.75, 80);
+            const chartHeight = isCompactFormat ? Math.max(contentSectionHeight * 0.85, 85) : Math.max(contentSectionHeight * 0.75, 80);
             const innerHeight = chartHeight - (innerChartPadding * 2);
             
             const lineData = dados.map((d, i) => {
@@ -398,23 +380,38 @@ function initializeKPICard() {
                     x, 
                     y: innerChartPadding + innerHeight * (1 - normalizedY), 
                     value: d.value,
-                    period: d.periodo 
+                    period: d.periodo,
+                    realValue: d.realValue
                 };
             });
 
             const line = d3.line().x(d => d.x).y(d => d.y).curve(d3.curveMonotoneX);
-            const strokeWidth = isCompactHorizontal ? Math.min(Math.max(height * 0.02, 2), 5) : Math.min(Math.max(width * 0.008, 3), 8);
+            const strokeWidth = isCompactFormat ? Math.min(Math.max(height * 0.015, 1.5), 3) : Math.min(Math.max(width * 0.008, 3), 8);
 
-            chartGroup.append("path").datum(lineData).attr("d", line).attr("stroke", "#1A9850").attr("stroke-width", strokeWidth).attr("fill", "none").attr("stroke-linecap", "round");
+            chartGroup.append("path")
+                .datum(lineData)
+                .attr("d", line)
+                .attr("stroke", "#1A9850")
+                .attr("stroke-width", strokeWidth)
+                .attr("fill", "none")
+                .attr("stroke-linecap", "round");
 
-            const pointRadius = isCompactHorizontal ? Math.min(Math.max(height * 0.015, 2), 4) : Math.min(Math.max(width * 0.005, 3), 7);
+            const pointRadius = isCompactFormat ? Math.min(Math.max(height * 0.012, 2), 3.5) : Math.min(Math.max(width * 0.005, 3), 7);
             
-            chartGroup.selectAll(".data-point").data(lineData).enter().append("circle").attr("class", "data-point")
-                .attr("cx", d => d.x).attr("cy", d => d.y).attr("r", pointRadius)
-                .attr("fill", "#1A9850").attr("stroke", "#ffffff").attr("stroke-width", Math.max(pointRadius * 0.3, 1))
+            chartGroup.selectAll(".data-point")
+                .data(lineData)
+                .enter()
+                .append("circle")
+                .attr("class", "data-point")
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .attr("r", pointRadius)
+                .attr("fill", "#1A9850")
+                .attr("stroke", "#ffffff")
+                .attr("stroke-width", Math.max(pointRadius * 0.3, 1))
                 .style("cursor", "pointer")
                 .on("mouseenter", function(event, d) {
-                    d3.select(this).transition().duration(150).attr("r", pointRadius * 1.4);
+                    d3.select(this).transition().duration(150).attr("r", pointRadius * 1.3);
                     showTooltip(event, d);
                 })
                 .on("mouseleave", function() {
@@ -423,29 +420,38 @@ function initializeKPICard() {
                 })
                 .on("mousemove", showTooltip);
 
-            const yearLabelFontSize = isCompactHorizontal ? Math.min(Math.max(height * 0.08, 7), 12) : Math.min(Math.max(height * 0.04, 10), width * 0.025, 15);
+            const yearLabelFontSize = isCompactFormat ? Math.min(Math.max(height * 0.065, 8), 11) : Math.min(Math.max(height * 0.04, 10), width * 0.025, 15);
             
-            chartGroup.selectAll(".value-label").data(lineData).enter().append("text").attr("class", "value-label")
-                .attr("x", d => d.x).attr("y", d => d.y - Math.max(8, height * 0.015))
-                .attr("font-size", yearLabelFontSize + "px").attr("fill", "#1a4f0e").attr("text-anchor", "middle").attr("font-weight", "700")
-                .text(d => formatChartLabel(d.value));
-            
-            chartGroup.selectAll(".year-label").data(lineData).enter().append("text").attr("class", "year-label")
-                .attr("x", d => d.x).attr("y", chartHeight + Math.max(12, height * 0.02))
-                .attr("font-size", yearLabelFontSize + "px").attr("fill", "#2d5016").attr("text-anchor", "middle").attr("font-weight", "600")
+            chartGroup.selectAll(".year-label")
+                .data(lineData)
+                .enter()
+                .append("text")
+                .attr("class", "year-label")
+                .attr("x", d => d.x)
+                .attr("y", chartHeight + Math.max(12, height * 0.018))
+                .attr("font-size", yearLabelFontSize + "px")
+                .attr("fill", "#2d5016")
+                .attr("text-anchor", "middle")
+                .attr("font-weight", "600")
                 .text(d => d.period);
         }
 
         const separatorX = padding + chartWidth + (padding / 2);
-        mainGroup.append("line").attr("x1", separatorX).attr("y1", chartY).attr("x2", separatorX).attr("y2", chartY + contentSectionHeight).attr("stroke", "rgba(45,80,22,0.3)").attr("stroke-width", 1);
+        mainGroup.append("line")
+            .attr("x1", separatorX)
+            .attr("y1", chartY)
+            .attr("x2", separatorX)
+            .attr("y2", chartY + contentSectionHeight)
+            .attr("stroke", "rgba(45,80,22,0.3)")
+            .attr("stroke-width", 1);
 
         const variationsX = separatorX + (padding / 2);
         const variationsGroup = mainGroup.append("g").attr("transform", `translate(${variationsX}, ${chartY})`);
         
-        const availableVariationsHeight = contentSectionHeight * 0.9;
+        const availableVariationsHeight = contentSectionHeight * 0.95;
         const variationBlockHeight = availableVariationsHeight / 3;
-        const variationStartY = contentSectionHeight * 0.05;
-        const labelValueSpacing = isCompactHorizontal ? Math.max(variationBlockHeight * 0.45, 12) : Math.max(variationBlockHeight * 0.35, 20);
+        const variationStartY = contentSectionHeight * 0.03;
+        const labelValueSpacing = isCompactFormat ? Math.max(variationBlockHeight * 0.45, 12) : Math.max(variationBlockHeight * 0.35, 20);
         const variationCenterX = variationsWidth / 2;
 
         const variations = [
@@ -456,8 +462,20 @@ function initializeKPICard() {
         
         variations.forEach((variation, i) => {
             const yPos = variationStartY + (i * variationBlockHeight);
-            variationsGroup.append("text").attr("class", "secondary-label-text").attr("x", variationCenterX).attr("y", yPos).attr("font-size", labelFontSize + "px").text(variation.label);
-            variationsGroup.append("text").attr("class", "secondary-value-text").attr("x", variationCenterX).attr("y", yPos + labelValueSpacing).attr("font-size", valueFontSize + "px").text(variation.format(variation.value));
+            
+            variationsGroup.append("text")
+                .attr("class", "secondary-label-text")
+                .attr("x", variationCenterX)
+                .attr("y", yPos)
+                .attr("font-size", labelFontSize + "px")
+                .text(variation.label);
+                
+            variationsGroup.append("text")
+                .attr("class", "secondary-value-text")
+                .attr("x", variationCenterX)
+                .attr("y", yPos + labelValueSpacing)
+                .attr("font-size", valueFontSize + "px")
+                .text(variation.format(variation.value));
         });
     }
 }
