@@ -172,11 +172,11 @@ function initializeKPICard() {
     const SAMPLE_MESSAGE = {
         resultName: "kpiCardSimpleSample",
         data: [
-            ["Taxa de Acesso à Internet", 2020, 78.5, 5800],
-            ["Taxa de Acesso à Internet", 2021, 81.2, 6100],
-            ["Taxa de Acesso à Internet", 2022, 84.1, 6229],
-            ["Taxa de Acesso à Internet", 2023, 87.3, 6500],
-            ["Taxa de Acesso à Internet", 2024, 85.8, 6400],
+            ["Taxa de Acesso à Internet", 2020, 0.785, 5800],
+            ["Taxa de Acesso à Internet", 2021, 0.812, 6100],
+            ["Taxa de Acesso à Internet", 2022, 0.841, 6229],
+            ["Taxa de Acesso à Internet", 2023, 0.873, 6500],
+            ["Taxa de Acesso à Internet", 2024, 0.858, 6400],
         ],
         columns: [
             { label: "Métrica", type: "string" },
@@ -238,12 +238,22 @@ function initializeKPICard() {
         const titulo = allData[0][0];
         const hasRealValueColumn = columns.length > 3;
 
+        // NOVO: Verifica se os dados de percentual estão em formato decimal (ex: 0.75)
+        // e precisam ser multiplicados por 100.
+        const isDecimalFormat = allData.every(d => d[2] >= 0 && d[2] <= 1);
+
         // Agrupa e ordena os dados por período
         const aggregatedByPeriod = d3.group(allData, d => d[1]);
         
         const calculatedData = Array.from(aggregatedByPeriod, ([period, values]) => {
-            const totalValue = d3.sum(values, d => d[2]);
+            let totalValue = d3.sum(values, d => d[2]);
             const totalRealValue = hasRealValueColumn ? d3.sum(values, d => d[3]) : null;
+
+            // Converte automaticamente se o formato for decimal
+            if (isDecimalFormat) {
+                totalValue *= 100;
+            }
+
             return {
                 periodo: +period,
                 value: totalValue,
