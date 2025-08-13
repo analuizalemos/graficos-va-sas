@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v23 (Cálculo Restaurado)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v24 (Cálculo de Total Corrigido)
 Funcionalidades:
-- CÁLCULO RESTAURADO: A lógica de cálculo da percentagem para o gráfico agrupado foi revertida para a original, como solicitado.
-- RÓTULOS ADICIONADOS: A única alteração é a exibição dos rótulos de percentagem no gráfico agrupado (Sexo).
+- CÁLCULO CORRIGIDO: O gráfico agora usa um total geral fornecido pelo SAS VA (numa 4ª coluna) para o cálculo da percentagem na vista "Total".
+- RÓTULOS ADICIONADOS: A exibição dos rótulos de percentagem no gráfico agrupado (Sexo) está presente.
 -->
 <html>
 <head>
@@ -151,13 +151,12 @@ function initializeChart() {
     // Dados de exemplo para teste local.
     const SAMPLE_MESSAGE_VINCULO = {
         resultName: "vinculoSample",
-        data: [ ["Item A", "Vínculo*", 150], ["Item B", "Vínculo*", 5350], ["Item C", "Vínculo*", 805] ],
-        columns: [ { label: "Categoria" }, { label: "Tipo de Contagem" }, { label: "Valor" } ]
-    };
-    const SAMPLE_MESSAGE_SEXO_FEMININO = {
-        resultName: "sexoFemininoSample",
-        data: [ ["Ensino Médio completo", "Feminino", 8.2], ["Ensino Superior completo", "Feminino", 58.7] ],
-        columns: [ { label: "Escolaridade" }, { label: "Sexo" }, { label: "Valor" } ]
+        data: [ 
+            ["Exclusivamente por indicação/escolha da gestão", "Pessoa", 556, 800],
+            ["Processo seletivo qualificado", "Pessoa", 44, 800],
+            ["Outro", "Pessoa", 200, 800]
+        ],
+        columns: [ { label: "Categoria" }, { label: "Tipo de Contagem" }, { label: "Valor" }, { label: "Total Geral" } ]
     };
     const SAMPLE_MESSAGE_SEXO_AMBOS = {
         resultName: "sexoAmbosSample",
@@ -173,7 +172,7 @@ function initializeChart() {
         va.contentUtil.setupResizeListener(() => onDataReceived());
     } else {
         // Alterne entre as amostras para testar os diferentes cenários
-        onDataReceived(SAMPLE_MESSAGE_SEXO_AMBOS); 
+        onDataReceived(SAMPLE_MESSAGE_VINCULO); 
         window.addEventListener("resize", () => onDataReceived());
     }
 
@@ -237,7 +236,16 @@ function initializeChart() {
     function processAndRenderTotal(svg, rawData, width, height, singleGroupName) {
         const groupColumnName = vaMessage?.columns[1]?.label || "Grupo";
         const data = rawData;
-        const totalGeral = d3.sum(data, d => d.value);
+        
+        // --- LÓGICA DE CÁLCULO CORRIGIDA ---
+        let totalGeral;
+        // Verifica se os dados originais do SAS têm 4 colunas e se a 4ª coluna tem um valor numérico.
+        if (vaMessage.data.length > 0 && vaMessage.data[0].length > 3 && !isNaN(vaMessage.data[0][3])) {
+            totalGeral = +vaMessage.data[0][3];
+        } else {
+            // Se não for fornecido um total, calcula-o somando os valores visíveis (comportamento anterior).
+            totalGeral = d3.sum(data, d => d.value);
+        }
 
         data.forEach(d => {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
