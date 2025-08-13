@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v18 (Lógica Final)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v20 (Escala Corrigida)
 Funcionalidades:
-- LÓGICA DE CENÁRIO RESTAURADA: O código agora diferencia a visão agrupada (Sexo) da visão total (Tipo de Contagem).
+- ESCALA CORRIGIDA: O eixo Y no gráfico agrupado voltou a ser dinâmico, ajustando-se ao valor máximo, conforme solicitado.
+- LÓGICA DE COR CORRIGIDA: O código verifica o nome da coluna de agrupamento para aplicar a regra de cor correta.
+- LÓGICA DE CENÁRIO: Diferencia corretamente a visão agrupada (Sexo) da visão total (Tipo de Contagem).
 - LÓGICA DE CORES (TIPO DE CONTAGEM): "Vínculo*" -> verde claro (#52ae74), Outros -> verde escuro (#2a8a4d).
-- LÓGICA DE CORES (SEXO): Mantida a lógica original (Feminino -> verde claro, Masculino -> verde escuro).
-- Rótulos do eixo X quebram a linha automaticamente.
-- A legenda exibe o tipo de contagem/grupo atual.
-- Linhas dos eixos com marcadores discretos.
+- LÓGICA DE CORES (SEXO): "Feminino" -> verde claro (#52ae74), "Masculino" -> verde escuro (#2a8a4d).
 -->
 <html>
 <head>
@@ -155,17 +154,19 @@ function initializeChart() {
     // Dados de exemplo para teste local.
     const SAMPLE_MESSAGE_VINCULO = {
         resultName: "vinculoSample",
-        data: [
-            ["Item A", "Vínculo*", 150], ["Item B", "Vínculo*", 5350], ["Item C", "Vínculo*", 805]
-        ],
+        data: [ ["Item A", "Vínculo*", 150], ["Item B", "Vínculo*", 5350], ["Item C", "Vínculo*", 805] ],
         columns: [ { label: "Categoria" }, { label: "Tipo de Contagem" }, { label: "Valor" } ]
     };
-    const SAMPLE_MESSAGE_SEXO = {
-        resultName: "sexoSample",
+    const SAMPLE_MESSAGE_SEXO_FEMININO = {
+        resultName: "sexoFemininoSample",
+        data: [ ["Ensino Médio completo", "Feminino", 8.2], ["Ensino Superior completo", "Feminino", 58.7] ],
+        columns: [ { label: "Escolaridade" }, { label: "Sexo" }, { label: "Valor" } ]
+    };
+    const SAMPLE_MESSAGE_SEXO_AMBOS = {
+        resultName: "sexoAmbosSample",
         data: [
             ["Item A", "Feminino", 100], ["Item A", "Masculino", 50],
             ["Item B", "Feminino", 2350], ["Item B", "Masculino", 3000],
-            ["Item C", "Feminino", 505], ["Item C", "Masculino", 300]
         ],
         columns: [ { label: "Categoria" }, { label: "Sexo" }, { label: "Valor" } ]
     };
@@ -174,22 +175,14 @@ function initializeChart() {
         va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
         va.contentUtil.setupResizeListener(() => onDataReceived());
     } else {
-        // Alterne entre SAMPLE_MESSAGE_VINCULO e SAMPLE_MESSAGE_SEXO para testar
-        onDataReceived(SAMPLE_MESSAGE_VINCULO); 
+        // Alterne entre as amostras para testar os diferentes cenários
+        onDataReceived(SAMPLE_MESSAGE_SEXO_AMBOS); 
         window.addEventListener("resize", () => onDataReceived());
     }
 
     function wrap(text, width) {
       text.each(function() {
-        var text = d3.select(this),
-            words = text.text().split(/\s+/).reverse(),
-            word,
-            line = [],
-            lineNumber = 0,
-            lineHeight = 1.1, // ems
-            y = text.attr("y"),
-            dy = 0,
-            tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+        var text = d3.select(this), words = text.text().split(/\s+/).reverse(), word, line = [], lineNumber = 0, lineHeight = 1.1, y = text.attr("y"), dy = 0, tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
         while (word = words.pop()) {
           line.push(word);
           tspan.text(line.join(" "));
@@ -245,15 +238,21 @@ function initializeChart() {
     }
 
     function processAndRenderTotal(svg, rawData, width, height, singleGroupName) {
-        const data = rawData; // Dados já são agregados pelo VA
+        const groupColumnName = vaMessage?.columns[1]?.label || "Grupo";
+        const data = rawData;
         const totalGeral = d3.sum(data, d => d.value);
 
         data.forEach(d => {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
         });
 
-        // LÓGICA DE COR PARA TIPO DE CONTAGEM
-        const barColor = (singleGroupName === 'Vínculo*') ? '#52ae74' : '#2a8a4d';
+        let barColor;
+        // LÓGICA DE COR CORRIGIDA: Verifica o NOME da coluna
+        if (groupColumnName.toLowerCase().includes('sexo')) {
+            barColor = (singleGroupName === 'Feminino') ? '#52ae74' : '#2a8a4d';
+        } else { // Assume que é "Tipo de Contagem" ou outro
+            barColor = (singleGroupName === 'Vínculo*') ? '#52ae74' : '#2a8a4d';
+        }
 
         updateLegend([singleGroupName], d3.scaleOrdinal().domain([singleGroupName]).range([barColor]));
 
@@ -265,21 +264,15 @@ function initializeChart() {
         svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickSize(3).tickFormat(d => d3.format(".0%")(d)));
 
         svg.selectAll(".data-bar").data(data).enter().append("rect")
-            .attr("class", "data-bar")
-            .attr("fill", barColor)
-            .attr("x", d => xScale(d.category))
-            .attr("y", d => yScale(d.percentage))
-            .attr("width", xScale.bandwidth())
-            .attr("height", d => height - yScale(d.percentage))
+            .attr("class", "data-bar").attr("fill", barColor)
+            .attr("x", d => xScale(d.category)).attr("y", d => yScale(d.percentage))
+            .attr("width", xScale.bandwidth()).attr("height", d => height - yScale(d.percentage))
             .on("mouseover", (event, d) => showTooltip(event, d, false, singleGroupName))
-            .on("mousemove", moveTooltip)
-            .on("mouseout", hideTooltip);
+            .on("mousemove", moveTooltip).on("mouseout", hideTooltip);
 
         svg.selectAll(".value-label").data(data).enter().append("text")
-            .attr("class", "value-label")
-            .attr("x", d => xScale(d.category) + xScale.bandwidth() / 2)
-            .attr("y", d => yScale(d.percentage) - 8)
-            .text(d => d3.format(".1%")(d.percentage).replace('.',','));
+            .attr("class", "value-label").attr("x", d => xScale(d.category) + xScale.bandwidth() / 2)
+            .attr("y", d => yScale(d.percentage) - 8).text(d => d3.format(".1%")(d.percentage).replace('.',','));
     }
 
     function processAndRenderGrouped(svg, rawData, width, height) {
@@ -290,26 +283,26 @@ function initializeChart() {
         }));
 
         const categories = [...new Set(data.map(d => d.category))];
-        const groups = [...new Set(data.map(d => d.group))].sort(); // Garante ordem consistente (Feminino, Masculino)
+        const groups = ['Feminino', 'Masculino']; // Domínio explícito para robustez
         
-        // LÓGICA DE COR PARA SEXO (OU OUTRO AGRUPAMENTO)
         const colorScale = d3.scaleOrdinal().domain(groups).range(['#52ae74', '#2a8a4d']);
-
         updateLegend(groups, colorScale);
 
         const x0Scale = d3.scaleBand().domain(categories).range([0, width]).padding(0.3);
         const x1Scale = d3.scaleBand().domain(groups).range([0, x0Scale.bandwidth()]).padding(0.1);
-        const yScale = d3.scaleLinear().domain([0, 1]).range([height, 0]); // Percentual vai de 0 a 100%
+        
+        // ALTERAÇÃO REVERTIDA: O eixo Y volta a ser dinâmico
+        const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
         svg.append("g").attr("class", "grid").call(d3.axisLeft(yScale).ticks(5).tickSize(-width).tickFormat(""));
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x0Scale).tickSize(3).tickPadding(12)).selectAll(".tick text").call(wrap, x0Scale.bandwidth());
         svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickSize(3).tickFormat(d => d3.format(".0%")(d)));
 
-        const categoryGroups = svg.selectAll(".category-group").data(categories).enter().append("g")
+        const categoryGroup = svg.selectAll(".category-group").data(categories).join("g")
             .attr("class", "category-group")
-            .attr("transform", d => `translate(${x0Scale(d)},0)`);
+            .attr("transform", d => `translate(${x0Scale(d)}, 0)`);
 
-        categoryGroups.selectAll(".data-bar").data(d => data.filter(item => item.category === d)).enter().append("rect")
+        categoryGroup.selectAll("rect").data(d => data.filter(item => item.category === d)).join("rect")
             .attr("class", "data-bar")
             .attr("x", d => x1Scale(d.group))
             .attr("y", d => yScale(d.percentage))
@@ -327,19 +320,12 @@ function initializeChart() {
             group: vaMessage?.columns[1]?.label || "Grupo",
             value: vaMessage?.columns[2]?.label || "Valor"
         };
-
         let content = `<strong>${columnLabels.category}:</strong> ${d.category}<br>`;
-        if (isGrouped) {
-            content += `<strong>${columnLabels.group}:</strong> ${d.group}<br>`;
-        } else {
-            content += `<strong>${columnLabels.group}:</strong> ${singleGroupName}<br>`;
-        }
+        content += `<strong>${columnLabels.group}:</strong> ${isGrouped ? d.group : singleGroupName}<br>`;
         content += `<strong>${columnLabels.value}:</strong> ${d3.format(",")(d.value)}<br>`;
         content += `<strong>Percentual:</strong> ${d3.format(".1%")(d.percentage).replace('.',',')}`;
-
         tooltip.style("opacity", 1).html(content)
-            .style("left", (event.pageX + 15) + "px")
-            .style("top", (event.pageY - 15) + "px");
+            .style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px");
     }
 
     function moveTooltip(event) {
