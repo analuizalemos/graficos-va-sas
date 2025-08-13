@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v15 (Espaçamento Final)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v15 (Cálculo de Total Corrigido)
 Funcionalidades:
+- CÁLCULO CORRIGIDO: O gráfico agora usa um total geral fornecido pelo SAS VA (numa 4ª coluna) para o cálculo da percentagem na vista "Total".
 - AJUSTE: Distância entre os rótulos do eixo X e a legenda foi reduzida ao máximo.
 - Rótulos do eixo X quebram a linha automaticamente.
 - Exibe legenda para a visão "Total" e "Agrupada".
 - A cor da barra na visão "Total" é definida pelo VALOR do filtro.
 - Remove linhas dos eixos para um visual mais limpo.
-- Cálculo percentual contextualizado.
 -->
 <html>
 <head>
@@ -130,15 +130,15 @@ function initializeChart() {
     const SAMPLE_MESSAGE_VINCULO = {
         resultName: "totalBarSample",
         data: [
-            ["Concurso público específico para o cargo de gestor escolar (apenas escolas públicas)", "Vínculo*", 150],
-            ["Exclusivamente por indicação/escolha da gestão (escolas públicas e privadas)", "Vínculo*", 5350],
-            ["Exclusivamente por processo eleitoral com a participação da comunidade escolar (apenas escolas públicas)", "Vínculo*", 805],
-            ["Outro (escolas públicas e privadas)", "Vínculo*", 250],
+            ["Exclusivamente por indicação/escolha da gestão", "Pessoa", 556, 800],
+            ["Processo seletivo qualificado", "Pessoa", 44, 800],
+            ["Outro", "Pessoa", 200, 800]
         ],
         columns: [ 
-            { label: "Escolaridade" }, 
+            { label: "Tipo de Acesso" }, 
             { label: "Tipo de Contagem" }, 
-            { label: "Percentual de Vínculos" } 
+            { label: "Quantidade" },
+            { label: "Total Geral" }
         ]
     };
 
@@ -217,9 +217,17 @@ function initializeChart() {
     }
 
     function processAndRenderTotal(svg, rawData, width, height, singleGroupName) {
-        const aggregatedData = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.category);
-        const data = Array.from(aggregatedData, ([category, value]) => ({ category, value }));
-        const totalGeral = d3.sum(data, d => d.value);
+        const data = rawData; // Os dados já vêm agregados do VA
+        
+        // --- LÓGICA DE CÁLCULO CORRIGIDA ---
+        let totalGeral;
+        // Verifica se os dados originais do SAS têm 4 colunas e se a 4ª coluna tem um valor numérico.
+        if (vaMessage.data.length > 0 && vaMessage.data[0].length > 3 && !isNaN(vaMessage.data[0][3])) {
+            totalGeral = +vaMessage.data[0][3];
+        } else {
+            // Se não for fornecido um total, calcula-o somando os valores visíveis (comportamento anterior).
+            totalGeral = d3.sum(data, d => d.value);
+        }
 
         data.forEach(d => {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
