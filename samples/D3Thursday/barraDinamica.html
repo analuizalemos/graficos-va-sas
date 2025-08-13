@@ -1,12 +1,9 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v15 (Cálculo de Total Corrigido)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v16 (Totais Específicos)
 Funcionalidades:
-- CÁLCULO CORRIGIDO: O gráfico agora usa um total geral fornecido pelo SAS VA (numa 4ª coluna) para o cálculo da percentagem na vista "Total".
-- AJUSTE: Distância entre os rótulos do eixo X e a legenda foi reduzida ao máximo.
-- Rótulos do eixo X quebram a linha automaticamente.
-- Exibe legenda para a visão "Total" e "Agrupada".
-- A cor da barra na visão "Total" é definida pelo VALOR do filtro.
+- TOTAIS ESPECÍFICOS: O cálculo na vista "Sexo" agora pode usar totais específicos para Feminino (4ª col) e Masculino (5ª col) se forem fornecidos pelo SAS.
+- CÁLCULO CORRIGIDO: O gráfico já usava um total geral fornecido pelo SAS VA (numa 4ª coluna) para o cálculo da percentagem na vista "Total".
 - Remove linhas dos eixos para um visual mais limpo.
 -->
 <html>
@@ -127,26 +124,22 @@ function initializeChart() {
     
     let vaMessage; 
 
-    const SAMPLE_MESSAGE_VINCULO = {
-        resultName: "totalBarSample",
+    const SAMPLE_MESSAGE_SEXO = {
+        resultName: "sexoAmbosSample",
         data: [
-            ["Exclusivamente por indicação/escolha da gestão", "Pessoa", 556, 800],
-            ["Processo seletivo qualificado", "Pessoa", 44, 800],
-            ["Outro", "Pessoa", 200, 800]
+            ["Contrato temporário", "Feminino", 100, 300, 200], 
+            ["Contrato temporário", "Masculino", 50, 300, 200],
+            ["Concursado/efetivo/estável", "Feminino", 200, 300, 200], 
+            ["Concursado/efetivo/estável", "Masculino", 150, 300, 200],
         ],
-        columns: [ 
-            { label: "Tipo de Acesso" }, 
-            { label: "Tipo de Contagem" }, 
-            { label: "Quantidade" },
-            { label: "Total Geral" }
-        ]
+        columns: [ { label: "Categoria" }, { label: "Sexo" }, { label: "Valor" }, {label: "Total Feminino"}, {label: "Total Masculino"} ]
     };
 
     if (window.self !== window.top && typeof va !== 'undefined' && va.messagingUtil) {
         va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
         va.contentUtil.setupResizeListener(() => onDataReceived());
     } else {
-        onDataReceived(SAMPLE_MESSAGE_VINCULO); 
+        onDataReceived(SAMPLE_MESSAGE_SEXO); 
         window.addEventListener("resize", () => onDataReceived());
     }
 
@@ -270,7 +263,23 @@ function initializeChart() {
     }
 
     function processAndRenderGrouped(svg, rawData, width, height) {
-        const totalsByGroup = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.group);
+        let totalsByGroup;
+
+        // --- LÓGICA DE CÁLCULO UNIFICADA ---
+        // Verifica se totais específicos para os grupos foram fornecidos
+        // Convenção: Coluna 4 para Total Feminino, Coluna 5 para Total Masculino
+        if (vaMessage.data.length > 0 && vaMessage.data[0].length > 4 && !isNaN(vaMessage.data[0][3]) && !isNaN(vaMessage.data[0][4])) {
+            const totalFeminino = +vaMessage.data[0][3];
+            const totalMasculino = +vaMessage.data[0][4];
+            totalsByGroup = new Map([
+                ['Feminino', totalFeminino],
+                ['Masculino', totalMasculino]
+            ]);
+        } else {
+            // Se não, usa a lógica original do barraDinamica.html
+            totalsByGroup = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.group);
+        }
+        
         const data = rawData.map(d => ({
             ...d,
             percentage: totalsByGroup.get(d.group) > 0 ? (d.value / totalsByGroup.get(d.group)) : 0
