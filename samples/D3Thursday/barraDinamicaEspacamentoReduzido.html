@@ -255,7 +255,7 @@ function initializeChart() {
         });
 
         const groupNameStr = singleGroupName || "";
-        const totalBarColor = (groupNameStr.toLowerCase().includes('vÃ­nculo')) ? '#52ae74' : '#2a8a4d';
+        const totalBarColor = (groupNameStr.toLowerCase().includes('vínculo*') || groupNameStr.toLowerCase().includes('vÃ­nculo*')) ? '#52ae74' : '#2a8a4d';
 
         const legendColorScale = d3.scaleOrdinal()
             .domain([singleGroupName])
