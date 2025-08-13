@@ -1,29 +1,29 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v16 (Espaçamento Super Reduzido)
+Adaptado para SAS Visual Analytics - GrÃ¡fico de Barras com DetecÃ§Ã£o AutomÃ¡tica v15 (EspaÃ§amento Final)
 Funcionalidades:
-- AJUSTE MÁXIMO: Distância entre as barras e a legenda reduzida ao mínimo.
-- Rótulos do eixo X quebram a linha automaticamente.
-- Exibe legenda para a visão "Total" e "Agrupada".
-- A cor da barra na visão "Total" é definida pelo VALOR do filtro.
-- Remove linhas dos eixos para um visual mais limpo.
-- Cálculo percentual contextualizado.
+- AJUSTE: DistÃ¢ncia entre os rÃ³tulos do eixo X e a legenda foi reduzida ao mÃ¡ximo.
+- RÃ³tulos do eixo X quebram a linha automaticamente.
+- Exibe legenda para a visÃ£o "Total" e "Agrupada".
+- A cor da barra na visÃ£o "Total" Ã© definida pelo VALOR do filtro.
+- Linhas dos eixos com marcadores discretos.
+- CÃ¡lculo percentual contextualizado.
 -->
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Gráfico de Barras com Detecção Automática para SAS VA</title>
+    <title>GrÃ¡fico de Barras com DetecÃ§Ã£o AutomÃ¡tica para SAS VA</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Import D3.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-    <!-- Importar utilitários do SAS VA -->
+    <!-- Importar utilitÃ¡rios do SAS VA -->
     <script>
         if (typeof window !== 'undefined' && window.self !== window.top) {
             try {
                 document.write('<script src="../../util/messagingUtil.js"><\/script>');
                 document.write('<script src="../../util/contentUtil.js"><\/script>');
             } catch(e) {
-                console.error("Utilitários do SAS VA não disponíveis:", e);
+                console.error("UtilitÃ¡rios do SAS VA nÃ£o disponÃ­veis:", e);
             }
         }
     </script>
@@ -64,8 +64,22 @@ Funcionalidades:
     .x-axis text {
         text-anchor: middle;
     }
-    .tick line, .domain {
-        display: none;
+    /* Linhas dos eixos com marcadores discretos */
+    .tick line {
+        stroke: #e0e0e0;
+        stroke-width: 0.5px;
+    }
+    .domain {
+        stroke: #ccc;
+        stroke-width: 0.5px;
+    }
+    .grid line {
+        stroke: #f0f0f0;
+        stroke-width: 0.5px;
+        stroke-dasharray: 2,2;
+    }
+    .grid .domain {
+        stroke: none;
     }
     .value-label {
         font-family: 'Avenir Next', sans-serif;
@@ -89,11 +103,10 @@ Funcionalidades:
     }
     #legend {
         text-align: center;
-        padding: 8px 10px;
+        padding: 0px 5px 5px 5px;
         font-size: 14px;
         flex-shrink: 0;
-        margin-top: -5px;
-        line-height: 1.3;
+        margin-top: -40px;
     }
     .legend-item {
         display: inline-flex;
@@ -116,10 +129,25 @@ Funcionalidades:
 "use strict";
 
 document.addEventListener("DOMContentLoaded", function() {
+    // Verificar se D3 estÃ¡ carregado, caso contrÃ¡rio tentar carregar novamente
     if (typeof d3 !== 'undefined') {
         initializeChart();
     } else {
-        console.error("D3.js não foi carregado.");
+        console.warn("D3.js nÃ£o foi carregado na primeira tentativa, tentando carregar novamente...");
+        
+        // Tentar carregar D3 novamente
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js';
+        script.onload = function() {
+            console.log("D3.js carregado com sucesso!");
+            initializeChart();
+        };
+        script.onerror = function() {
+            console.error("Falha ao carregar D3.js. Verifique a conexÃ£o com a internet.");
+            document.getElementById('chart-container').innerHTML = 
+                '<div style="padding: 20px; text-align: center; color: #666;">Erro: NÃ£o foi possÃ­vel carregar a biblioteca D3.js</div>';
+        };
+        document.head.appendChild(script);
     }
 });
 
@@ -132,15 +160,15 @@ function initializeChart() {
     const SAMPLE_MESSAGE_VINCULO = {
         resultName: "totalBarSample",
         data: [
-            ["Concurso público específico para o cargo de gestor escolar (apenas escolas públicas)", "Vínculo*", 150],
-            ["Exclusivamente por indicação/escolha da gestão (escolas públicas e privadas)", "Vínculo*", 5350],
-            ["Exclusivamente por processo eleitoral com a participação da comunidade escolar (apenas escolas públicas)", "Vínculo*", 805],
-            ["Outro (escolas públicas e privadas)", "Vínculo*", 250],
+            ["Concurso pÃºblico especÃ­fico para o cargo de gestor escolar (apenas escolas pÃºblicas)", "VÃ­nculo*", 150],
+            ["Exclusivamente por indicaÃ§Ã£o/escolha da gestÃ£o (escolas pÃºblicas e privadas)", "VÃ­nculo*", 5350],
+            ["Exclusivamente por processo eleitoral com a participaÃ§Ã£o da comunidade escolar (apenas escolas pÃºblicas)", "VÃ­nculo*", 805],
+            ["Outro (escolas pÃºblicas e privadas)", "VÃ­nculo*", 250],
         ],
         columns: [ 
             { label: "Escolaridade" }, 
             { label: "Tipo de Contagem" }, 
-            { label: "Percentual de Vínculos" } 
+            { label: "Percentual de VÃ­nculos" } 
         ]
     };
 
@@ -152,7 +180,7 @@ function initializeChart() {
         window.addEventListener("resize", () => onDataReceived());
     }
 
-    // *** FUNÇÃO PARA QUEBRA DE LINHA (TEXT WRAPPING) ***
+    // *** FUNÃ‡ÃƒO PARA QUEBRA DE LINHA (TEXT WRAPPING) ***
     function wrap(text, width) {
       text.each(function() {
         var text = d3.select(this),
@@ -194,8 +222,7 @@ function initializeChart() {
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
 
-        // Margens otimizadas para aproximar legenda das barras sem comprometer o layout
-        const margin = { top: 20, right: 20, bottom: 45, left: 60 };
+        const margin = { top: 20, right: 10, bottom: 80, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
 
@@ -228,7 +255,7 @@ function initializeChart() {
         });
 
         const groupNameStr = singleGroupName || "";
-        const totalBarColor = (groupNameStr.toLowerCase().includes('vínculo')) ? '#52ae74' : '#2a8a4d';
+        const totalBarColor = (groupNameStr.toLowerCase().includes('vÃ­nculo')) ? '#52ae74' : '#2a8a4d';
 
         const legendColorScale = d3.scaleOrdinal()
             .domain([singleGroupName])
@@ -236,14 +263,23 @@ function initializeChart() {
         updateLegend([singleGroupName], legendColorScale);
 
         const xScale = d3.scaleBand().domain(data.map(d => d.category)).range([0, width]).padding(0.4);
-        const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.08 || 0.1]).range([height, 0]);
+        const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
+
+        // Adicionar linhas de grade discretas no eixo Y
+        svg.append("g")
+           .attr("class", "grid")
+           .call(d3.axisLeft(yScale)
+                   .ticks(5)
+                   .tickSize(-width)
+                   .tickFormat("")
+           );
 
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(15)) 
+           .call(d3.axisBottom(xScale).tickSize(3).tickPadding(12)) 
            .selectAll(".tick text")
            .call(wrap, xScale.bandwidth());
 
-        svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d => d3.format(".0%")(d)));
+        svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickSize(3).tickFormat(d => d3.format(".0%")(d)));
 
         svg.selectAll(".data-bar").data(data).enter().append("rect")
             .attr("class", "data-bar")
@@ -280,12 +316,21 @@ function initializeChart() {
         const x1Scale = d3.scaleBand().domain(groups).range([0, x0Scale.bandwidth()]).padding(0.1);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
+        // Adicionar linhas de grade discretas no eixo Y
+        svg.append("g")
+           .attr("class", "grid")
+           .call(d3.axisLeft(yScale)
+                   .ticks(5)
+                   .tickSize(-width)
+                   .tickFormat("")
+           );
+
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(15)) 
+           .call(d3.axisBottom(x0Scale).tickSize(3).tickPadding(12))
            .selectAll(".tick text")
            .call(wrap, x0Scale.bandwidth());
 
-        svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickFormat(d => d3.format(".0%")(d)));
+        svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickSize(3).tickFormat(d => d3.format(".0%")(d)));
 
         svg.selectAll(".category-group").data(data).enter().append("rect")
             .attr("class", d => `data-bar bar-${d.group.toLowerCase()}`)
