@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v21 (Rótulos Corrigidos)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v23 (Cálculo Restaurado)
 Funcionalidades:
-- RÓTULOS CORRIGIDOS: Adicionados os rótulos de percentagem em falta no gráfico agrupado (Sexo).
-- ESCALA CORRIGIDA: O eixo Y no gráfico agrupado é dinâmico, ajustando-se ao valor máximo.
-- LÓGICA DE COR CORRIGIDA: O código verifica o nome da coluna de agrupamento para aplicar a regra de cor correta.
-- LÓGICA DE CENÁRIO: Diferencia corretamente a visão agrupada (Sexo) da visão total (Tipo de Contagem).
+- CÁLCULO RESTAURADO: A lógica de cálculo da percentagem para o gráfico agrupado foi revertida para a original, como solicitado.
+- RÓTULOS ADICIONADOS: A única alteração é a exibição dos rótulos de percentagem no gráfico agrupado (Sexo).
 -->
 <html>
 <head>
@@ -164,8 +162,8 @@ function initializeChart() {
     const SAMPLE_MESSAGE_SEXO_AMBOS = {
         resultName: "sexoAmbosSample",
         data: [
-            ["Item A", "Feminino", 100], ["Item A", "Masculino", 50],
-            ["Item B", "Feminino", 2350], ["Item B", "Masculino", 3000],
+            ["Com Pós-Graduação", "Feminino", 70], ["Com Pós-Graduação", "Masculino", 30],
+            ["Sem Pós-Graduação", "Feminino", 60], ["Sem Pós-Graduação", "Masculino", 40],
         ],
         columns: [ { label: "Categoria" }, { label: "Sexo" }, { label: "Valor" } ]
     };
@@ -246,10 +244,10 @@ function initializeChart() {
         });
 
         let barColor;
-        // LÓGICA DE COR CORRIGIDA: Verifica o NOME da coluna
+        
         if (groupColumnName.toLowerCase().includes('sexo')) {
             barColor = (singleGroupName === 'Feminino') ? '#52ae74' : '#2a8a4d';
-        } else { // Assume que é "Tipo de Contagem" ou outro
+        } else { 
             barColor = (singleGroupName === 'Vínculo*') ? '#52ae74' : '#2a8a4d';
         }
 
@@ -275,6 +273,7 @@ function initializeChart() {
     }
 
     function processAndRenderGrouped(svg, rawData, width, height) {
+        // CÁLCULO RESTAURADO: A percentagem é baseada no total de cada categoria do eixo X.
         const totalsByCategory = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.category);
         const data = rawData.map(d => ({
             ...d,
@@ -282,7 +281,7 @@ function initializeChart() {
         }));
 
         const categories = [...new Set(data.map(d => d.category))];
-        const groups = ['Feminino', 'Masculino']; // Domínio explícito para robustez
+        const groups = ['Feminino', 'Masculino']; 
         
         const colorScale = d3.scaleOrdinal().domain(groups).range(['#52ae74', '#2a8a4d']);
         updateLegend(groups, colorScale);
@@ -311,7 +310,6 @@ function initializeChart() {
             .on("mousemove", moveTooltip)
             .on("mouseout", hideTooltip);
             
-        // ** ADICIONADO: Rótulos de valor para o gráfico agrupado **
         categoryGroup.selectAll(".value-label")
             .data(d => data.filter(item => item.category === d))
             .join("text")
