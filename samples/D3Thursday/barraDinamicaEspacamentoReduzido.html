@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v17 (Lógica de Filtro Corrigida)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v18 (Lógica Final)
 Funcionalidades:
-- LÓGICA CORRIGIDA: O gráfico agora renderiza apenas um tipo de contagem por vez (ex: "Vínculo*" ou "Pessoa"), conforme filtrado no SAS VA.
-- LÓGICA DE CORES: "Vínculo*" -> verde claro (#52ae74), Outros -> verde escuro (#2a8a4d).
+- LÓGICA DE CENÁRIO RESTAURADA: O código agora diferencia a visão agrupada (Sexo) da visão total (Tipo de Contagem).
+- LÓGICA DE CORES (TIPO DE CONTAGEM): "Vínculo*" -> verde claro (#52ae74), Outros -> verde escuro (#2a8a4d).
+- LÓGICA DE CORES (SEXO): Mantida a lógica original (Feminino -> verde claro, Masculino -> verde escuro).
 - Rótulos do eixo X quebram a linha automaticamente.
-- A legenda exibe o tipo de contagem atual.
+- A legenda exibe o tipo de contagem/grupo atual.
 - Linhas dos eixos com marcadores discretos.
-- Cálculo percentual contextualizado.
 -->
 <html>
 <head>
@@ -152,31 +152,33 @@ function initializeChart() {
     
     let vaMessage; 
 
-    // Dados de exemplo para teste local. Reflete o caso de "Vínculo*".
-    const SAMPLE_MESSAGE = {
-        resultName: "totalBarSample",
+    // Dados de exemplo para teste local.
+    const SAMPLE_MESSAGE_VINCULO = {
+        resultName: "vinculoSample",
         data: [
-            ["Concurso público específico para o cargo de gestor escolar (apenas escolas públicas)", "Vínculo*", 150],
-            ["Exclusivamente por indicação/escolha da gestão (escolas públicas e privadas)", "Vínculo*", 5350],
-            ["Exclusivamente por processo eleitoral com a participação da comunidade escolar (apenas escolas públicas)", "Vínculo*", 805],
-            ["Outro (escolas públicas e privadas)", "Vínculo*", 250],
+            ["Item A", "Vínculo*", 150], ["Item B", "Vínculo*", 5350], ["Item C", "Vínculo*", 805]
         ],
-        columns: [ 
-            { label: "Forma de Provimento" }, 
-            { label: "Tipo de Contagem" }, 
-            { label: "Quantidade" } 
-        ]
+        columns: [ { label: "Categoria" }, { label: "Tipo de Contagem" }, { label: "Valor" } ]
+    };
+    const SAMPLE_MESSAGE_SEXO = {
+        resultName: "sexoSample",
+        data: [
+            ["Item A", "Feminino", 100], ["Item A", "Masculino", 50],
+            ["Item B", "Feminino", 2350], ["Item B", "Masculino", 3000],
+            ["Item C", "Feminino", 505], ["Item C", "Masculino", 300]
+        ],
+        columns: [ { label: "Categoria" }, { label: "Sexo" }, { label: "Valor" } ]
     };
 
     if (window.self !== window.top && typeof va !== 'undefined' && va.messagingUtil) {
         va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
         va.contentUtil.setupResizeListener(() => onDataReceived());
     } else {
-        onDataReceived(SAMPLE_MESSAGE); 
+        // Alterne entre SAMPLE_MESSAGE_VINCULO e SAMPLE_MESSAGE_SEXO para testar
+        onDataReceived(SAMPLE_MESSAGE_VINCULO); 
         window.addEventListener("resize", () => onDataReceived());
     }
 
-    // Função para quebra de linha dos rótulos do eixo X
     function wrap(text, width) {
       text.each(function() {
         var text = d3.select(this),
@@ -214,11 +216,16 @@ function initializeChart() {
         
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
+        
+        const uniqueGroups = new Set(vaMessage.data.map(row => row[1]));
+        const isGrouped = uniqueGroups.size > 1;
 
-        renderChart(container);
-    }
+        const rawData = vaMessage.data.map(row => ({
+            category: row[0],
+            group: row[1],
+            value: +row[2] || 0
+        }));
 
-    function renderChart(container) {
         const margin = { top: 20, right: 10, bottom: 80, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
@@ -226,48 +233,37 @@ function initializeChart() {
         const svg = d3.select(container).append("svg")
             .attr("width", container.clientWidth)
             .attr("height", container.clientHeight)
-          .append("g")
+            .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
-        const data = vaMessage.data.map(row => ({
-            category: row[0],
-            group: row[1],
-            value: +row[2] || 0
-        }));
+        if (isGrouped) {
+            processAndRenderGrouped(svg, rawData, width, height);
+        } else {
+            const singleGroupName = uniqueGroups.values().next().value;
+            processAndRenderTotal(svg, rawData, width, height, singleGroupName);
+        }
+    }
 
-        // Como os dados já vêm filtrados, o nome do grupo é o mesmo para todos.
-        const groupName = data.length > 0 ? data[0].group : "";
+    function processAndRenderTotal(svg, rawData, width, height, singleGroupName) {
+        const data = rawData; // Dados já são agregados pelo VA
         const totalGeral = d3.sum(data, d => d.value);
 
         data.forEach(d => {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
         });
 
-        // LÓGICA DE COR CORRIGIDA
-        const barColor = (groupName === 'Vínculo*') ? '#52ae74' : '#2a8a4d';
+        // LÓGICA DE COR PARA TIPO DE CONTAGEM
+        const barColor = (singleGroupName === 'Vínculo*') ? '#52ae74' : '#2a8a4d';
 
-        // Atualiza a legenda com o grupo e cor corretos
-        updateLegend([groupName], d3.scaleOrdinal().domain([groupName]).range([barColor]));
+        updateLegend([singleGroupName], d3.scaleOrdinal().domain([singleGroupName]).range([barColor]));
 
         const xScale = d3.scaleBand().domain(data.map(d => d.category)).range([0, width]).padding(0.4);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
-        // Adiciona linhas de grade no eixo Y
-        svg.append("g")
-           .attr("class", "grid")
-           .call(d3.axisLeft(yScale).ticks(5).tickSize(-width).tickFormat(""));
+        svg.append("g").attr("class", "grid").call(d3.axisLeft(yScale).ticks(5).tickSize(-width).tickFormat(""));
+        svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`).call(d3.axisBottom(xScale).tickSize(3).tickPadding(12)).selectAll(".tick text").call(wrap, xScale.bandwidth());
+        svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickSize(3).tickFormat(d => d3.format(".0%")(d)));
 
-        // Eixo X
-        svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(xScale).tickSize(3).tickPadding(12)) 
-           .selectAll(".tick text")
-           .call(wrap, xScale.bandwidth());
-
-        // Eixo Y
-        svg.append("g").attr("class", "y-axis")
-           .call(d3.axisLeft(yScale).ticks(5).tickSize(3).tickFormat(d => d3.format(".0%")(d)));
-
-        // Barras
         svg.selectAll(".data-bar").data(data).enter().append("rect")
             .attr("class", "data-bar")
             .attr("fill", barColor)
@@ -275,11 +271,10 @@ function initializeChart() {
             .attr("y", d => yScale(d.percentage))
             .attr("width", xScale.bandwidth())
             .attr("height", d => height - yScale(d.percentage))
-            .on("mouseover", (event, d) => showTooltip(event, d))
+            .on("mouseover", (event, d) => showTooltip(event, d, false, singleGroupName))
             .on("mousemove", moveTooltip)
             .on("mouseout", hideTooltip);
 
-        // Rótulos de valor
         svg.selectAll(".value-label").data(data).enter().append("text")
             .attr("class", "value-label")
             .attr("x", d => xScale(d.category) + xScale.bandwidth() / 2)
@@ -287,7 +282,46 @@ function initializeChart() {
             .text(d => d3.format(".1%")(d.percentage).replace('.',','));
     }
 
-    function showTooltip(event, d) {
+    function processAndRenderGrouped(svg, rawData, width, height) {
+        const totalsByCategory = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.category);
+        const data = rawData.map(d => ({
+            ...d,
+            percentage: totalsByCategory.get(d.category) > 0 ? (d.value / totalsByCategory.get(d.category)) : 0
+        }));
+
+        const categories = [...new Set(data.map(d => d.category))];
+        const groups = [...new Set(data.map(d => d.group))].sort(); // Garante ordem consistente (Feminino, Masculino)
+        
+        // LÓGICA DE COR PARA SEXO (OU OUTRO AGRUPAMENTO)
+        const colorScale = d3.scaleOrdinal().domain(groups).range(['#52ae74', '#2a8a4d']);
+
+        updateLegend(groups, colorScale);
+
+        const x0Scale = d3.scaleBand().domain(categories).range([0, width]).padding(0.3);
+        const x1Scale = d3.scaleBand().domain(groups).range([0, x0Scale.bandwidth()]).padding(0.1);
+        const yScale = d3.scaleLinear().domain([0, 1]).range([height, 0]); // Percentual vai de 0 a 100%
+
+        svg.append("g").attr("class", "grid").call(d3.axisLeft(yScale).ticks(5).tickSize(-width).tickFormat(""));
+        svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x0Scale).tickSize(3).tickPadding(12)).selectAll(".tick text").call(wrap, x0Scale.bandwidth());
+        svg.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale).ticks(5).tickSize(3).tickFormat(d => d3.format(".0%")(d)));
+
+        const categoryGroups = svg.selectAll(".category-group").data(categories).enter().append("g")
+            .attr("class", "category-group")
+            .attr("transform", d => `translate(${x0Scale(d)},0)`);
+
+        categoryGroups.selectAll(".data-bar").data(d => data.filter(item => item.category === d)).enter().append("rect")
+            .attr("class", "data-bar")
+            .attr("x", d => x1Scale(d.group))
+            .attr("y", d => yScale(d.percentage))
+            .attr("width", x1Scale.bandwidth())
+            .attr("height", d => height - yScale(d.percentage))
+            .attr("fill", d => colorScale(d.group))
+            .on("mouseover", (event, d) => showTooltip(event, d, true))
+            .on("mousemove", moveTooltip)
+            .on("mouseout", hideTooltip);
+    }
+
+    function showTooltip(event, d, isGrouped, singleGroupName) {
         const columnLabels = {
             category: vaMessage?.columns[0]?.label || "Categoria",
             group: vaMessage?.columns[1]?.label || "Grupo",
@@ -295,12 +329,15 @@ function initializeChart() {
         };
 
         let content = `<strong>${columnLabels.category}:</strong> ${d.category}<br>`;
-        content += `<strong>${columnLabels.group}:</strong> ${d.group}<br>`;
+        if (isGrouped) {
+            content += `<strong>${columnLabels.group}:</strong> ${d.group}<br>`;
+        } else {
+            content += `<strong>${columnLabels.group}:</strong> ${singleGroupName}<br>`;
+        }
         content += `<strong>${columnLabels.value}:</strong> ${d3.format(",")(d.value)}<br>`;
         content += `<strong>Percentual:</strong> ${d3.format(".1%")(d.percentage).replace('.',',')}`;
 
-        tooltip.style("opacity", 1)
-            .html(content)
+        tooltip.style("opacity", 1).html(content)
             .style("left", (event.pageX + 15) + "px")
             .style("top", (event.pageY - 15) + "px");
     }
@@ -316,9 +353,7 @@ function initializeChart() {
     function updateLegend(groups, colorScale) {
         const legendContainer = d3.select("#legend");
         legendContainer.html("");
-
         if (!groups || groups.length === 0 || !groups[0]) return;
-
         const legendItems = legendContainer.selectAll(".legend-item").data(groups).enter().append("div").attr("class", "legend-item");
         legendItems.append("div").attr("class", "legend-color").style("background-color", d => colorScale(d));
         legendItems.append("span").text(d => d);
