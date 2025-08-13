@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v20 (Escala Corrigida)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v21 (Rótulos Corrigidos)
 Funcionalidades:
-- ESCALA CORRIGIDA: O eixo Y no gráfico agrupado voltou a ser dinâmico, ajustando-se ao valor máximo, conforme solicitado.
+- RÓTULOS CORRIGIDOS: Adicionados os rótulos de percentagem em falta no gráfico agrupado (Sexo).
+- ESCALA CORRIGIDA: O eixo Y no gráfico agrupado é dinâmico, ajustando-se ao valor máximo.
 - LÓGICA DE COR CORRIGIDA: O código verifica o nome da coluna de agrupamento para aplicar a regra de cor correta.
 - LÓGICA DE CENÁRIO: Diferencia corretamente a visão agrupada (Sexo) da visão total (Tipo de Contagem).
-- LÓGICA DE CORES (TIPO DE CONTAGEM): "Vínculo*" -> verde claro (#52ae74), Outros -> verde escuro (#2a8a4d).
-- LÓGICA DE CORES (SEXO): "Feminino" -> verde claro (#52ae74), "Masculino" -> verde escuro (#2a8a4d).
 -->
 <html>
 <head>
@@ -291,7 +290,6 @@ function initializeChart() {
         const x0Scale = d3.scaleBand().domain(categories).range([0, width]).padding(0.3);
         const x1Scale = d3.scaleBand().domain(groups).range([0, x0Scale.bandwidth()]).padding(0.1);
         
-        // ALTERAÇÃO REVERTIDA: O eixo Y volta a ser dinâmico
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
         svg.append("g").attr("class", "grid").call(d3.axisLeft(yScale).ticks(5).tickSize(-width).tickFormat(""));
@@ -312,6 +310,15 @@ function initializeChart() {
             .on("mouseover", (event, d) => showTooltip(event, d, true))
             .on("mousemove", moveTooltip)
             .on("mouseout", hideTooltip);
+            
+        // ** ADICIONADO: Rótulos de valor para o gráfico agrupado **
+        categoryGroup.selectAll(".value-label")
+            .data(d => data.filter(item => item.category === d))
+            .join("text")
+            .attr("class", "value-label")
+            .attr("x", d => x1Scale(d.group) + x1Scale.bandwidth() / 2)
+            .attr("y", d => yScale(d.percentage) - 8)
+            .text(d => d3.format(".1%")(d.percentage).replace('.',','));
     }
 
     function showTooltip(event, d, isGrouped, singleGroupName) {
