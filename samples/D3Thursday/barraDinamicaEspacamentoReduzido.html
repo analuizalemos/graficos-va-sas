@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v24 (Cálculo de Total Corrigido)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v25 (Cálculo de Sexo Restaurado)
 Funcionalidades:
-- CÁLCULO CORRIGIDO: O gráfico agora usa um total geral fornecido pelo SAS VA (numa 4ª coluna) para o cálculo da percentagem na vista "Total".
-- RÓTULOS ADICIONADOS: A exibição dos rótulos de percentagem no gráfico agrupado (Sexo) está presente.
+- CÁLCULO DE SEXO RESTAURADO: A lógica de cálculo para a vista agrupada ("Sexo") foi restaurada para a original do "barraDinamica.html", como solicitado.
+- CÁLCULO DE TOTAL CORRIGIDO: O gráfico continua a usar o total geral da 4ª coluna na vista "Total" para garantir a exatidão.
 -->
 <html>
 <head>
@@ -172,7 +172,7 @@ function initializeChart() {
         va.contentUtil.setupResizeListener(() => onDataReceived());
     } else {
         // Alterne entre as amostras para testar os diferentes cenários
-        onDataReceived(SAMPLE_MESSAGE_VINCULO); 
+        onDataReceived(SAMPLE_MESSAGE_SEXO_AMBOS); 
         window.addEventListener("resize", () => onDataReceived());
     }
 
@@ -281,11 +281,11 @@ function initializeChart() {
     }
 
     function processAndRenderGrouped(svg, rawData, width, height) {
-        // CÁLCULO RESTAURADO: A percentagem é baseada no total de cada categoria do eixo X.
-        const totalsByCategory = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.category);
+        // CÁLCULO RESTAURADO PARA A LÓGICA ORIGINAL DE barraDinamica.html
+        const totalsByGroup = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.group);
         const data = rawData.map(d => ({
             ...d,
-            percentage: totalsByCategory.get(d.category) > 0 ? (d.value / totalsByCategory.get(d.category)) : 0
+            percentage: totalsByGroup.get(d.group) > 0 ? (d.value / totalsByGroup.get(d.group)) : 0
         }));
 
         const categories = [...new Set(data.map(d => d.category))];
