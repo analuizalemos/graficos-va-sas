@@ -254,13 +254,13 @@ function initializeChart() {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
         });
 
-        const singleGroup = [...new Set(rawData.map(d => d.group))][0];
-        const totalBarColor = '#52ae74';
+        const groupNameStr = singleGroupName || "";
+        const totalBarColor = (groupNameStr.toLowerCase().includes('vÃ­nculo')) ? '#52ae74' : '#2a8a4d';
 
         const legendColorScale = d3.scaleOrdinal()
-            .domain([singleGroup])
+            .domain([singleGroupName])
             .range([totalBarColor]);
-        updateLegend([singleGroup], legendColorScale);
+        updateLegend([singleGroupName], legendColorScale);
 
         const xScale = d3.scaleBand().domain(data.map(d => d.category)).range([0, width]).padding(0.4);
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
@@ -288,7 +288,7 @@ function initializeChart() {
             .attr("y", d => yScale(d.percentage))
             .attr("width", xScale.bandwidth())
             .attr("height", d => height - yScale(d.percentage))
-            .on("mouseover", (event, d) => showTooltip(event, d, false, singleGroup))
+            .on("mouseover", (event, d) => showTooltip(event, d, false, singleGroupName))
             .on("mousemove", moveTooltip)
             .on("mouseout", hideTooltip);
 
