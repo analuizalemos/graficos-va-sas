@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v18 (Lógica de 6 Colunas)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v19 (Lógica de 6 Colunas)
 Funcionalidades:
 - LÓGICA DE 6 COLUNAS: O código agora espera receber 6 colunas de dados do SAS.
 - CÁLCULO DE TOTAL CORRETO: A vista "Total" usa o valor da 4ª coluna como Total Geral.
@@ -151,7 +151,6 @@ function initializeChart() {
         window.addEventListener("resize", () => onDataReceived());
     }
 
-    // *** FUNÇÃO PARA QUEBRA DE LINHA (TEXT WRAPPING) ***
     function wrap(text, width) {
       text.each(function() {
         var text = d3.select(this),
@@ -183,6 +182,7 @@ function initializeChart() {
 
         if (!vaMessage || !vaMessage.data || vaMessage.data.length === 0) {
             d3.select("#" + chartContainerId).selectAll("*").remove();
+            d3.select("#legend").html("");
             return;
         }
 
@@ -193,7 +193,6 @@ function initializeChart() {
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
 
-        // AJUSTE: Margem inferior reduzida para aproximar a legenda.
         const margin = { top: 20, right: 10, bottom: 80, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
