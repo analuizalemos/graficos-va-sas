@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
-Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v32 (Totais Específicos)
+Adaptado para SAS Visual Analytics - Gráfico de Barras com Detecção Automática v35 (Lógica de 6 Colunas)
 Funcionalidades:
-- TOTAIS ESPECÍFICOS: O cálculo na vista "Sexo" agora pode usar totais específicos para Feminino (4ª col) e Masculino (5ª col) se forem fornecidos pelo SAS.
-- CÁLCULO DE TOTAL CORRETO: A vista "Total" continua a usar o total geral da 4ª coluna para garantir a exatidão.
-- LÓGICA DE SEXO ORIGINAL: Se os totais específicos não forem fornecidos, a lógica de cálculo para "Sexo" volta à original.
+- LÓGICA DE 6 COLUNAS: O código agora espera receber 6 colunas de dados do SAS.
+- CÁLCULO DE TOTAL CORRETO: A vista "Total" usa o valor da 4ª coluna como Total Geral.
+- CÁLCULO DE SEXO CORRETO: A vista "Sexo" usa os valores da 5ª (Total Feminino) e 6ª (Total Masculino) colunas.
+- DESIGN ORIGINAL PRESERVADO: Mantém o visual com linhas de eixo, grelha e espaçamento originais.
 -->
 <html>
 <head>
@@ -139,29 +140,22 @@ function initializeChart() {
     
     let vaMessage; 
 
-    const SAMPLE_MESSAGE_VINCULO = {
-        resultName: "totalBarSample",
-        data: [
-            ["Exclusivamente por indicação/escolha da gestão", "Pessoa", 556, 800],
-            ["Processo seletivo qualificado", "Pessoa", 44, 800],
-            ["Outro", "Pessoa", 200, 800]
-        ],
-        columns: [ 
-            { label: "Tipo de Acesso" }, 
-            { label: "Tipo de Contagem" }, 
-            { label: "Quantidade" },
-            { label: "Total Geral" }
-        ]
-    };
-     const SAMPLE_MESSAGE_SEXO = {
+    const SAMPLE_MESSAGE_SEXO = {
         resultName: "sexoAmbosSample",
         data: [
-            ["Contrato temporário", "Feminino", 100, 300, 200], 
-            ["Contrato temporário", "Masculino", 50, 300, 200],
-            ["Concursado/efetivo/estável", "Feminino", 200, 300, 200], 
-            ["Concursado/efetivo/estável", "Masculino", 150, 300, 200],
+            ["Contrato temporário", "Feminino", 100, 500, 300, 200], 
+            ["Contrato temporário", "Masculino", 50, 500, 300, 200],
+            ["Concursado/efetivo/estável", "Feminino", 200, 500, 300, 200], 
+            ["Concursado/efetivo/estável", "Masculino", 150, 500, 300, 200],
         ],
-        columns: [ { label: "Categoria" }, { label: "Sexo" }, { label: "Valor" }, {label: "Total Feminino"}, {label: "Total Masculino"} ]
+        columns: [ 
+            { label: "Categoria" }, 
+            { label: "Sexo" }, 
+            { label: "Valor" }, 
+            { label: "Total Geral" }, 
+            { label: "Total Feminino" }, 
+            { label: "Total Masculino" } 
+        ]
     };
 
     if (window.self !== window.top && typeof va !== 'undefined' && va.messagingUtil) {
@@ -224,28 +218,22 @@ function initializeChart() {
           .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
-        const rawData = vaMessage.data.map(row => ({
-            category: row[0],
-            group: row[1],
-            value: +row[2] || 0
-        }));
-
         if (isGrouped) {
-            processAndRenderGrouped(svg, rawData, width, height);
+            processAndRenderGrouped(svg, width, height);
         } else {
-            processAndRenderTotal(svg, rawData, width, height, singleGroupName);
+            processAndRenderTotal(svg, width, height, singleGroupName);
         }
     }
 
-    function processAndRenderTotal(svg, rawData, width, height, singleGroupName) {
-        const data = rawData;
+    function processAndRenderTotal(svg, width, height, singleGroupName) {
+        const data = vaMessage.data.map(row => ({
+            category: row[0],
+            group: row[1],
+            value: +row[2] || 0,
+            totalGeral: +row[3] || 0
+        }));
         
-        let totalGeral;
-        if (vaMessage.data.length > 0 && vaMessage.data[0].length > 3 && !isNaN(vaMessage.data[0][3])) {
-            totalGeral = +vaMessage.data[0][3];
-        } else {
-            totalGeral = d3.sum(data, d => d.value);
-        }
+        const totalGeral = data.length > 0 ? data[0].totalGeral : d3.sum(data, d => d.value);
 
         data.forEach(d => {
             d.percentage = totalGeral > 0 ? (d.value / totalGeral) : 0;
@@ -288,28 +276,25 @@ function initializeChart() {
             .text(d => d3.format(".1%")(d.percentage).replace('.',','));
     }
 
-    function processAndRenderGrouped(svg, rawData, width, height) {
-        let totalsByGroup;
-        
-        // --- LÓGICA DE CÁLCULO UNIFICADA ---
-        // Verifica se totais específicos para os grupos foram fornecidos
-        // Convenção: Coluna 4 para Total Feminino, Coluna 5 para Total Masculino
-        if (vaMessage.data.length > 0 && vaMessage.data[0].length > 4 && !isNaN(vaMessage.data[0][3]) && !isNaN(vaMessage.data[0][4])) {
-            const totalFeminino = +vaMessage.data[0][3];
-            const totalMasculino = +vaMessage.data[0][4];
-            totalsByGroup = new Map([
-                ['Feminino', totalFeminino],
-                ['Masculino', totalMasculino]
-            ]);
-        } else {
-            // Se não, usa a lógica original do barraDinamica.html
-            totalsByGroup = d3.rollup(rawData, v => d3.sum(v, d => d.value), d => d.group);
-        }
-
-        const data = rawData.map(d => ({
-            ...d,
-            percentage: totalsByGroup.get(d.group) > 0 ? (d.value / totalsByGroup.get(d.group)) : 0
+    function processAndRenderGrouped(svg, width, height) {
+        const data = vaMessage.data.map(row => ({
+            category: row[0],
+            group: row[1],
+            value: +row[2] || 0,
+            totalGeral: +row[3] || 0,
+            totalFeminino: +row[4] || 0,
+            totalMasculino: +row[5] || 0
         }));
+        
+        const totalsByGroup = new Map([
+            ['Feminino', data.length > 0 ? data[0].totalFeminino : 0],
+            ['Masculino', data.length > 0 ? data[0].totalMasculino : 0]
+        ]);
+
+        data.forEach(d => {
+            const totalDoGrupo = totalsByGroup.get(d.group);
+            d.percentage = totalDoGrupo > 0 ? (d.value / totalDoGrupo) : 0;
+        });
 
         const categories = [...new Set(data.map(d => d.category))];
         const groups = [...new Set(data.map(d => d.group))].sort();
