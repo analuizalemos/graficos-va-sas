@@ -72,8 +72,8 @@ Funcionalidades:
     }
     /* Manter visível apenas a linha do eixo X */
     .x-axis .domain {
-        stroke: #333;
-        stroke-width: 1;
+        stroke: #999;
+        stroke-width: 0.5;
     }
     .value-label {
         font-family: 'Avenir Next', sans-serif;
@@ -219,7 +219,7 @@ function initializeChart() {
         const container = document.getElementById(chartContainerId);
         d3.select(container).selectAll("*").remove();
 
-        const margin = { top: 20, right: 10, bottom: 80, left: 50 };
+        const margin = { top: 20, right: 10, bottom: 100, left: 50 };
         const width = container.clientWidth - margin.left - margin.right;
         const height = container.clientHeight - margin.top - margin.bottom;
 
@@ -263,7 +263,7 @@ function initializeChart() {
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(12)) 
+           .call(d3.axisBottom(xScale).tickSize(0).tickPadding(20)) 
            .selectAll(".tick text")
            .call(wrap, xScale.bandwidth());
 
@@ -305,7 +305,7 @@ function initializeChart() {
         const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.percentage) * 1.15 || 0.1]).range([height, 0]);
 
         svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`)
-           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(12))
+           .call(d3.axisBottom(x0Scale).tickSize(0).tickPadding(20))
            .selectAll(".tick text")
            .call(wrap, x0Scale.bandwidth());
 
