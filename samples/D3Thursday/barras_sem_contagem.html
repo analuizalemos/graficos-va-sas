@@ -4,7 +4,7 @@ Adaptado para SAS Visual Analytics - Gráfico de Barras Simplificado v16
 Funcionalidades:
 - Rótulos do eixo X quebram a linha automaticamente.
 - Exibe legenda para dados agrupados.
-- Remove linhas dos eixos para um visual mais limpo.
+- Linha do eixo X visível.
 - Cálculo percentual contextualizado.
 - Lógica de "tipo de contagem" removida.
 -->
@@ -63,8 +63,17 @@ Funcionalidades:
     .x-axis text {
         text-anchor: middle;
     }
-    .tick line, .domain {
+    /* Esconder todas as linhas dos ticks e domínios, exceto o domínio do eixo X */
+    .tick line {
         display: none;
+    }
+    .y-axis .domain {
+        display: none;
+    }
+    /* Manter visível apenas a linha do eixo X */
+    .x-axis .domain {
+        stroke: #333;
+        stroke-width: 1;
     }
     .value-label {
         font-family: 'Avenir Next', sans-serif;
