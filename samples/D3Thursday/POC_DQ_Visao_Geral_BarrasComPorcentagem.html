@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAS VA - Indicadores de Barras Horizontais</title>
+    
+    <!-- Importação do D3.js (Versão 7) -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+        /* CSS Reset e Configurações Básicas */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden; /* Sem barras de rolagem conforme solicitado */
+            background-color: transparent; /* Fundo transparente para integrar ao tema do VA */
+        }
+
+        #chart-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Centraliza verticalmente se houver espaço */
+            width: 98%;
+            height: 98%;
+            margin: 1%;
+            box-sizing: border-box;
+        }
+
+        /* Estilo de cada linha (Rótulo + Barra + Valor) */
+        .bar-row {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            /* Altura dinâmica: divide o espaço disponível pelo nº de barras, com máx e min limites */
+            flex-grow: 1; 
+            max-height: 60px; 
+            min-height: 30px;
+            margin-bottom: 4px;
+        }
+
+        /* Área do Rótulo (Esquerda) */
+        .label-text {
+            width: 25%; /* Ajustável */
+            padding-right: 10px;
+            text-align: right;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Área da Barra (Centro) */
+        .bar-wrapper {
+            flex-grow: 1; /* Ocupa o resto do espaço */
+            height: 60%; /* Altura da parte colorida relativa à linha */
+            background-color: #e0e0e0; /* Cor de fundo da trilha (opcional, pode ser transparente) */
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        /* A Barra Colorida em si */
+        .bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 1s ease-in-out; /* Animação suave ao atualizar */
+            width: 0%; /* Inicia em 0 para animar */
+        }
+
+        /* Área do Valor (Direita) */
+        .value-text {
+            width: 25%; /* Ajustável */
+            padding-left: 10px;
+            text-align: left;
+            font-size: 14px;
+            color: #555;
+            white-space: nowrap;
+        }
+
+        .value-percent {
+            font-weight: bold;
+            color: #333;
+            margin-right: 5px;
+        }
+
+        /* Tooltip simples */
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="chart-container"></div>
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        "use strict";
+
+        // ---------------------------------------------------------
+        // 1. CONFIGURAÇÕES E UTILITÁRIOS
+        // ---------------------------------------------------------
+
+        // Mapa de cores fixo conforme solicitado
+        // Adicionado nível "Base" (Verde)
+        const COLOR_MAP = {
+            "critico": "#8C1D18",      // Vermelho Escuro
+            "alto": "#E74C3C",         // Vermelho Claro
+            "moderado": "#F1A208",     // Laranja
+            "baixo": "#F4D03F",        // Amarelo
+            "baixo risco": "#F4D03F",
+            "low": "#F4D03F",
+            "base": "#27AE60",         // Verde (Novo nível)
+            "muito baixo": "#27AE60"
+        };
+        const DEFAULT_COLOR = "#5A6ABF";
+
+        // Função para normalizar strings (remove acentos e espaços extras)
+        function normalizeKey(str) {
+            if (!str) return "";
+            return str.toString()
+                      .toLowerCase()
+                      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                      .trim();
+        }
+
+        // Função para formatar números (Padrão BR: 1.000,00)
+        const formatValue = new Intl.NumberFormat('pt-BR').format;
+        const formatPercent = (val) => (val * 100).toFixed(1) + "%";
+
+        // ---------------------------------------------------------
+        // 2. LÓGICA DO D3 E RENDERIZAÇÃO
+        // ---------------------------------------------------------
+
+        function drawChart(data) {
+            const container = d3.select("#chart-container");
+            const tooltip = d3.select("#tooltip");
+
+            // Se não houver dados, limpa e retorna
+            if (!data || data.length === 0) {
+                container.html("<div style='text-align:center; color:#999;'>Sem dados para exibir</div>");
+                return;
+            }
+
+            // Padrão D3 Data Join: Seleciona linhas, associa dados, gerencia entrada/saída
+            const rows = container.selectAll(".bar-row")
+                .data(data, d => d.label); // Usa o label como chave para estabilidade
+
+            // --- EXIT (Remover barras que não existem mais) ---
+            rows.exit().remove();
+
+            // --- ENTER (Criar novas linhas) ---
+            const rowsEnter = rows.enter()
+                .append("div")
+                .attr("class", "bar-row");
+
+            // 1. Rótulo (Esquerda)
+            rowsEnter.append("div").attr("class", "label-text");
+            
+            // 2. Wrapper da Barra
+            const barWrapper = rowsEnter.append("div").attr("class", "bar-wrapper");
+            
+            // 3. Barra Colorida (Dentro do Wrapper)
+            barWrapper.append("div").attr("class", "bar-fill");
+
+            // 4. Valor (Direita)
+            rowsEnter.append("div").attr("class", "value-text");
+
+            // --- UPDATE (Atualizar linhas existentes e novas) ---
+            const rowsUpdate = rowsEnter.merge(rows);
+
+            // Atualiza Texto do Rótulo
+            rowsUpdate.select(".label-text")
+                .text(d => d.label)
+                .attr("title", d => d.label); // Tooltip nativo do browser para nomes longos
+
+            // Atualiza a Barra (Cor e Largura)
+            rowsUpdate.select(".bar-fill")
+                .style("background-color", d => {
+                    const key = normalizeKey(d.label);
+                    return COLOR_MAP[key] || DEFAULT_COLOR;
+                })
+                .style("width", d => d.percentPct + "%") // Define largura em %
+                // Eventos de Tooltip customizado
+                .on("mouseover", function(event, d) {
+                    tooltip.transition().duration(200).style("opacity", 0.9);
+                    tooltip.html(`<strong>${d.label}</strong><br/>Val: ${formatValue(d.value)}<br/>Pct: ${d.percentPct}%`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                    d3.select(this).style("opacity", 0.8);
+                })
+                .on("mouseout", function() {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                    d3.select(this).style("opacity", 1);
+                });
+
+            // Atualiza Texto do Valor (Direita)
+            rowsUpdate.select(".value-text")
+                .html(d => `<span class="value-percent">${d.percentPct}%</span> ${formatValue(d.value)} un.`);
+        }
+
+        // ---------------------------------------------------------
+        // 3. INTEGRAÇÃO COM SAS VA (MESSAGING)
+        // ---------------------------------------------------------
+
+        function onMessage(evt) {
+            if (evt && evt.data) {
+                let message = evt.data;
+                
+                // O SAS VA envia message.data e message.columns
+                // Precisamos validar se existem dados
+                if (message.data && message.columns && message.data.length > 0) {
+                    
+                    const columns = message.columns; 
+                    const rowData = message.data[0]; // Pegamos a primeira linha (totais das medidas)
+
+                    // Calcula o total geral para fazer a proporção (part-to-whole)
+                    // Caso as medidas não sejam partes de um todo, o gráfico ainda funciona,
+                    // mas a soma será usada como base 100%.
+                    let totalSum = 0;
+                    rowData.forEach(val => {
+                        if (typeof val === 'number') totalSum += val;
+                    });
+                    
+                    // Se total for 0, evita divisão por zero
+                    if (totalSum === 0) totalSum = 1;
+
+                    // Transforma os dados crus do VA em um array de objetos limpo
+                    const processedData = columns.map((col, index) => {
+                        const rawValue = rowData[index];
+                        // O VA pode enviar null ou string ".". Tratamos como 0.
+                        const value = (typeof rawValue === 'number') ? rawValue : 0;
+                        const percent = (value / totalSum);
+                        
+                        return {
+                            label: col.label, // Nome da Medida (Ex: "Crítico")
+                            value: value,     // Valor Absoluto (Ex: 18600)
+                            percent: percent, // Decimal (0.15)
+                            percentPct: (percent * 100).toFixed(1) // String (15.0)
+                        };
+                    });
+
+                    drawChart(processedData);
+                }
+            }
+        }
+
+        // Registrar o listener para receber dados do VA
+        if (window.addEventListener) {
+            window.addEventListener("message", onMessage, false);
+        } else {
+            window.attachEvent("onmessage", onMessage);
+        }
+
+        // ---------------------------------------------------------
+        // 4. AMBIENTE DE DESENVOLVIMENTO (FALLBACK LOCAL)
+        // ---------------------------------------------------------
+        // Este bloco simula o envio de dados do SAS VA quando abrimos o arquivo localmente.
+        // Ele não executa dentro do VA real (pois não receberá o postMessage imediato do parent).
+        
+        setTimeout(() => {
+            const isLocal = window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            
+            // Verificação simples: se o gráfico estiver vazio após 1s, injeta dados de teste
+            const container = document.getElementById("chart-container");
+            if (container.innerHTML === "") {
+                console.log("Modo Standalone detectado: Carregando dados de exemplo.");
+                
+                const mockMessage = {
+                    data: {
+                        data: [
+                            [18600, 31000, 43400, 31000, 15000] // Adicionado valor para "Base"
+                        ],
+                        columns: [
+                            { label: "Crítico" },
+                            { label: "Alto" },
+                            { label: "Moderado" },
+                            { label: "Baixo" },
+                            { label: "Base" } // Adicionado novo rótulo
+                        ]
+                    }
+                };
+                
+                // Simula o evento
+                onMessage(mockMessage);
+            }
+        }, 800);
+
+    </script>
+</body>
+</html>
