@@ -121,11 +121,11 @@
         // Mapa de cores fixo conforme solicitado
         // Adicionado nível "Base" (Verde)
         const COLOR_MAP = {
-            "critico": "#8C1D18",      // Vermelho Escuro
-            "alto": "#E74C3C",         // Vermelho Claro
-            "moderado": "#F1A208",     // Laranja
-            "baixo": "#F4D03F",        // Amarelo
-            "baixo risco": "#F4D03F",
+            "critico - nivel 5": "#8C1D18",      // Vermelho Escuro
+            "alto - nivel 4": "#E74C3C",         // Vermelho Claro
+            "moderado - nivel 3": "#F1A208",     // Laranja
+            "baixo - nivel 2": "#F4D03F",        // Amarelo
+            "baixo - nivel 1": "#F4D03F",
             "low": "#F4D03F",
             "base": "#27AE60",         // Verde (Novo nível)
             "muito baixo": "#27AE60"
@@ -213,7 +213,7 @@
 
             // Atualiza Texto do Valor (Direita)
             rowsUpdate.select(".value-text")
-                .html(d => `<span class="value-percent">${d.percentPct}%</span> ${formatValue(d.value)} un.`);
+                .html(d => `<span class="value-percent">${d.percentPct}%</span> ${formatValue(d.value)} alertas`);
         }
 
         // ---------------------------------------------------------
