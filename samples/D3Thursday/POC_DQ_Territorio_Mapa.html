@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Escolas - SAS DDC</title>
+
+    <!-- 1. Bibliotecas Externas (Leaflet + MarkerCluster) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    
+    <style>
+        /* 2. Estilização Responsiva */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Estilo da Legenda */
+        .legend {
+            background: white;
+            padding: 10px;
+            line-height: 18px;
+            color: #555;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+            border-radius: 50%;
+        }
+
+        /* Loading Overlay */
+        #loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        /* Ajuste Popup */
+        .leaflet-popup-content-wrapper {
+            border-radius: 4px;
+        }
+        .popup-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 3px;
+            color: #333;
+        }
+        .popup-table td {
+            padding: 2px 5px;
+            font-size: 0.9em;
+        }
+        .popup-label {
+            font-weight: 600;
+            color: #666;
+        }
+        .leaflet-control-custom {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+
+    <!-- Scripts do Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    
+    <!-- Scripts Utilitários SAS -->
+    <script src="../../util/messagingUtil.js" onerror="window.sasMessagingMissing=true"></script>
+    <script src="../../util/contentUtil.js" onerror="window.sasContentMissing=true"></script>
+
+</head>
+<body>
+
+    <div id="loader">Carregando dados...</div>
+    <div id="map"></div>
+
+<script>
+    /**
+     * CONFIGURAÇÃO E VARIÁVEIS GLOBAIS
+     */
+    let map;
+    let markersCluster;
+    let legend;
+    
+    // Cores para Dependência Administrativa / Rede
+    const colorScale = {
+        'Municipal': '#1f77b4', // Azul
+        'Estadual': '#ff7f0e',  // Laranja
+        'Federal': '#2ca02c',   // Verde
+        'Privada': '#d62728',   // Vermelho
+        'Outros': '#9467bd'     // Roxo
+    };
+
+    // ---------------------------------------------------------
+    // 3. DADOS DE EXEMPLO (SEUS DADOS DO CSV)
+    // ---------------------------------------------------------
+    const SAMPLE_DATA = {
+        columns: [
+            { label: "NO_ENTIDADE", type: "string" }, // 0
+            { label: "LATITUDE", type: "number" },    // 1
+            { label: "LONGITUDE", type: "number" },   // 2
+            { label: "SG_UF", type: "string" },       // 3
+            { label: "NO_MUNICIPIO", type: "string" },// 4
+            { label: "CO_ENTIDADE", type: "string" }  // 5
+        ],
+        data: [
+            // Dados extraídos do seu CSV para teste visual
+            ["EMEF PROF HERBERT DE ALENCAR", -8.764006266, -63.8782668, "RO", "Porto Velho", "11000201"],
+            ["EEEFM DR OSWALDO PIANNA", -8.7275472, -63.9090556, "RO", "Porto Velho", "11000937"],
+            ["EEEFM MARIANA", -8.7713569, -63.8242688, "RO", "Porto Velho", "11001550"],
+            ["ASSOCIACAO PESTALOZZI", -8.7381852, -63.8923458, "RO", "Porto Velho", "11003294"],
+            ["EMEF CASTRO ALVES", -8.234529581, -63.25452274, "RO", "Porto Velho", "11003367"],
+            ["C EDUCACIONAL DOCE INFANCIA SUL", -16.0319782, -48.0659455, "DF", "Brasília", "53015096"],
+            ["COL MILITAR TIRADENTES", -15.83021174, -47.94206093, "DF", "Brasília", "53015495"],
+            ["CR PASTOR FRANCISCO MIRANDA", -15.8760512, -48.0678301, "DF", "Brasília", "53015622"],
+            ["ESC KK", -15.8442903, -47.8961525, "DF", "Brasília", "53015886"],
+            ["COL MARECHAL DEODORO DA FONSECA CMDF", -16.01103311, -47.98763232, "DF", "Brasília", "53016106"],
+            ["CEPI PAINEIRA", -15.8945082, -48.1097112, "DF", "Brasília", "53016238"],
+            ["ESC COLINHO DA VOVO", -15.81419, -48.12559414, "DF", "Brasília", "53016890"]
+        ]
+    };
+
+    /**
+     * INICIALIZAÇÃO DO MAPA
+     */
+    function initMap() {
+        // Centraliza no Brasil inicialmente
+        map = L.map('map').setView([-14.2350, -51.9253], 4);
+
+        // Adiciona Tile Layer (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Inicializa o grupo de cluster
+        markersCluster = L.markerClusterGroup({
+            showCoverageOnHover: false,
+            maxClusterRadius: 50
+        });
+        
+        map.addLayer(markersCluster);
+
+        // Botão Reset
+        const resetControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function(map) {
+                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                container.style.backgroundColor = 'white';
+                container.style.width = '30px';
+                container.style.height = '30px';
+                container.style.cursor = 'pointer';
+                container.title = "Resetar Zoom";
+                container.innerHTML = '<span style="font-size:18px;">&#8962;</span>';
+                
+                container.onclick = function(){
+                    if (markersCluster.getBounds().isValid()) {
+                        map.fitBounds(markersCluster.getBounds(), { padding: [50, 50] });
+                    } else {
+                        map.setView([-14.2350, -51.9253], 4);
+                    }
+                }
+                return container;
+            }
+        });
+        map.addControl(new resetControl());
+    }
+
+    /**
+     * LÓGICA DE PROCESSAMENTO DE DADOS (SAS -> JS)
+     */
+    function onDataReceived(message) {
+        if (!message || !message.data || message.data.length === 0) {
+            console.warn("Nenhum dado recebido.");
+            return;
+        }
+
+        document.getElementById('loader').style.display = 'block';
+
+        // 1. Mapeamento Inteligente de Colunas
+        const colMap = mapColumns(message.columns);
+
+        if (colMap.lat === -1 || colMap.lon === -1) {
+            // Tenta fallback se não achou pelos nomes padrões
+            console.warn("Colunas Lat/Lon não identificadas pelo nome padrão. Tentando índices 1 e 2.");
+            // Lógica de emergência para datasets simples
+            if(message.columns.length >= 3) {
+                 colMap.lat = 1;
+                 colMap.lon = 2;
+            } else {
+                alert("Erro: Colunas de Latitude e Longitude não encontradas. Verifique os dados.");
+                document.getElementById('loader').style.display = 'none';
+                return;
+            }
+        }
+
+        // 2. Limpar mapa
+        markersCluster.clearLayers();
+        if (legend) map.removeControl(legend);
+
+        const validMarkers = [];
+        const categoriesFound = new Set();
+
+        // 3. Processar linhas
+        message.data.forEach(row => {
+            const lat = parseFloat(row[colMap.lat]);
+            const lon = parseFloat(row[colMap.lon]);
+
+            // Validação
+            if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) return;
+
+            const nome = colMap.nome !== -1 ? row[colMap.nome] : "Escola";
+            let dependencia = "Outros";
+
+            // Se tiver coluna de dependência, usa. Senão, tenta adivinhar pelo nome (apenas visual)
+            if (colMap.dep !== -1) {
+                dependencia = normalizeCategory(row[colMap.dep]);
+            } else {
+                // Heurística simples para colorir o mapa se não tiver coluna "Rede"
+                const nomeUpper = nome.toUpperCase();
+                if (nomeUpper.includes("EMEF") || nomeUpper.includes("MUN")) dependencia = "Municipal";
+                else if (nomeUpper.includes("EEEFM") || nomeUpper.includes("EST")) dependencia = "Estadual";
+                else if (nomeUpper.includes("FED") || nomeUpper.includes("INST")) dependencia = "Federal";
+                else if (nomeUpper.includes("COL") || nomeUpper.includes("PRIV")) dependencia = "Privada";
+            }
+            
+            categoriesFound.add(dependencia);
+
+            // Cor
+            const color = colorScale[dependencia] || colorScale['Outros'];
+            const markerHtmlStyles = `
+                background-color: ${color};
+                width: 12px;
+                height: 12px;
+                display: block;
+                border-radius: 50%;
+                border: 1px solid #fff;
+                box-shadow: 1px 1px 2px rgba(0,0,0,0.4);
+            `;
+            
+            const customIcon = L.divIcon({
+                className: "custom-pin",
+                html: `<span style="${markerHtmlStyles}"></span>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
+            });
+
+            // Marcador
+            const marker = L.marker([lat, lon], { icon: customIcon });
+            
+            // Conteúdo do Popup
+            marker.bindTooltip(`<b>${nome}</b>`);
+            marker.bindPopup(buildPopupContent(row, message.columns, nome, dependencia));
+
+            validMarkers.push(marker);
+        });
+
+        // 4. Adicionar e Zoom
+        markersCluster.addLayers(validMarkers);
+
+        if (validMarkers.length > 0) {
+            map.fitBounds(markersCluster.getBounds(), { padding: [50, 50] });
+        }
+
+        // 5. Legenda
+        createLegend(categoriesFound);
+
+        document.getElementById('loader').style.display = 'none';
+    }
+
+    function mapColumns(columns) {
+        const map = { lat: -1, lon: -1, nome: -1, dep: -1, inep: -1 };
+        columns.forEach((col, index) => {
+            const label = col.label.toUpperCase();
+            if (label.includes("LATIT")) map.lat = index;
+            else if (label.includes("LONGIT")) map.lon = index;
+            else if (label.includes("NOME") || label.includes("NO_ENTIDADE") || label.includes("ESCOLA")) map.nome = index;
+            else if (label.includes("DEPEND") || label.includes("REDE") || label.includes("ADM") || label.includes("TIPO")) map.dep = index;
+            else if (label.includes("INEP") || label.includes("CO_ENTIDADE")) map.inep = index;
+        });
+        return map;
+    }
+
+    function normalizeCategory(val) {
+        if (!val) return "Outros";
+        const v = val.toString().toUpperCase();
+        if (v.includes("MUN")) return "Municipal";
+        if (v.includes("EST")) return "Estadual";
+        if (v.includes("FED")) return "Federal";
+        if (v.includes("PRI") || v.includes("PART")) return "Privada";
+        return "Outros";
+    }
+
+    function buildPopupContent(row, columns, nome, dep) {
+        let html = `<div class='popup-title'>${nome}</div>`;
+        html += `<div style='font-size:0.8em; color:#666; margin-bottom:5px'>${dep}</div>`;
+        html += `<table class='popup-table'>`;
+        columns.forEach((col, i) => {
+            const val = row[i];
+            if (val !== null && val !== undefined && val !== "") {
+                html += `<tr><td class='popup-label'>${col.label}:</td><td>${val}</td></tr>`;
+            }
+        });
+        html += `</table>`;
+        return html;
+    }
+
+    function createLegend(categories) {
+        legend = L.control({position: 'bottomright'});
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            let labels = ['<strong>Legenda</strong><br>'];
+            categories.forEach(cat => {
+                const color = colorScale[cat] || colorScale['Outros'];
+                labels.push(`<i style="background:${color}"></i> ${cat}`);
+            });
+            div.innerHTML = labels.join('<br>');
+            return div;
+        };
+        legend.addTo(map);
+    }
+
+    // --- SETUP MENSAGENS SAS ---
+    function setupSasHandlers() {
+        if (window.addEventListener) window.addEventListener("message", onMessage, false);
+        else window.attachEvent("onmessage", onMessage);
+    }
+
+    function onMessage(event) {
+        if (event && event.data && (event.data.version || (event.data.columns && event.data.data))) {
+             onDataReceived(event.data);
+        }
+    }
+
+    // --- INÍCIO ---
+    initMap();
+
+    // Verifica modo offline/teste e carrega SAMPLE_DATA
+    if (window.sasMessagingMissing || window.sasContentMissing || !window.messagingUtil) {
+        setupSasHandlers();
+        // Se estiver rodando localmente ou no preview, carrega dados de teste imediatamente
+        if (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || true) {
+            console.log("Carregando dados de exemplo (CSV embutido).");
+            setTimeout(() => onDataReceived(SAMPLE_DATA), 500);
+        }
+    } else {
+        messagingUtil.setOnDataReceivedCallback(onDataReceived);
+    }
+
+</script>
+</body>
+</html>
