@@ -5,242 +5,191 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapa de Escolas - SAS DDC</title>
 
-    <!-- 1. Bibliotecas Externas (Apenas Leaflet, sem MarkerCluster) -->
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     
     <style>
-        /* 2. Estilização Responsiva */
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f4f4f4;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f4f4; }
+        #map { width: 100%; height: 100%; z-index: 1; background: #fff; }
 
-        #map {
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            background: #fff; /* Fundo branco para destacar as cores */
-        }
-
-        /* Estilo da Legenda */
+        /* NOVA LEGENDA HORIZONTAL */
         .legend {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 12px;
-            line-height: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 12px;
             color: #333;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.15);
+            border-radius: 4px;
             font-size: 11px;
-            min-width: 120px;
+            line-height: 1.2;
+            min-width: 200px;
         }
-        .legend h4 {
-            margin: 0 0 8px 0;
-            font-size: 13px;
-            font-weight: bold;
+        .legend h4 { 
+            margin: 0 0 6px 0; 
+            font-size: 11px; 
+            font-weight: bold; 
+            text-transform: uppercase;
             color: #555;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 5px;
+            text-align: center;
         }
-        .legend i {
-            width: 16px;
-            height: 16px;
-            float: left;
-            margin-right: 8px;
-            opacity: 1;
-            border-radius: 3px;
-        }
-        .legend-item {
+        .legend-scale-container {
             display: flex;
-            align-items: center;
-            margin-bottom: 4px;
+            flex-direction: column;
+        }
+        .legend-gradient {
+            height: 12px;
+            width: 100%;
+            background: linear-gradient(to right, 
+                #d9f0a3 0%, 
+                #addd8e 25%, 
+                #ffffb2 50%, 
+                #fecc5c 75%, 
+                #bd0026 100%);
+            border-radius: 2px;
+            border: 1px solid #ccc;
+        }
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
+            color: #666;
+            font-weight: 600;
         }
 
-        /* Loading Overlay */
+        /* Loader */
         #loader {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255,255,255,0.95);
-            padding: 20px 40px;
-            border-radius: 8px;
-            z-index: 9999;
-            display: none;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            font-weight: 600;
-            color: #555;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: white; padding: 20px; border-radius: 8px; z-index: 9999;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); display: none; font-weight: bold;
         }
 
-        /* Ajuste Popup */
-        .leaflet-popup-content-wrapper {
-            border-radius: 6px;
-            box-shadow: 0 3px 14px rgba(0,0,0,0.2);
-        }
-        .popup-title {
-            font-weight: bold;
-            font-size: 1.1em;
-            margin-bottom: 8px;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 5px;
-            color: #333;
-        }
-        .popup-table td {
-            padding: 3px 5px;
-            font-size: 0.9em;
-            vertical-align: top;
-        }
-        .popup-label {
-            font-weight: 600;
-            color: #777;
-            text-align: right;
-            padding-right: 10px !important;
-        }
+        /* Popup */
+        .popup-title { font-weight: bold; border-bottom: 1px solid #ddd; margin-bottom: 5px; padding-bottom: 5px; }
+        .popup-table td { padding: 2px 5px; font-size: 0.9em; }
         
-        /* Botão Reset Customizado */
-        .leaflet-control-custom {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid rgba(0,0,0,0.2);
-            background-clip: padding-box;
-        }
-        .leaflet-control-custom:hover {
-            background-color: #f4f4f4;
-        }
     </style>
 
-    <!-- Scripts do Leaflet -->
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
-    <!-- Scripts Utilitários SAS -->
+    <!-- Esri Leaflet (Para carregar os limites do IBGE) -->
+    <script src="https://unpkg.com/esri-leaflet@3.0.10/dist/esri-leaflet.js"></script>
+
+    <!-- Scripts SAS -->
     <script src="../../util/messagingUtil.js" onerror="window.sasMessagingMissing=true"></script>
     <script src="../../util/contentUtil.js" onerror="window.sasContentMissing=true"></script>
 
 </head>
 <body>
 
-    <div id="loader">Carregando mapa...</div>
+    <div id="loader">Carregando dados...</div>
     <div id="map"></div>
 
 <script>
-    /**
-     * CONFIGURAÇÃO E VARIÁVEIS GLOBAIS
-     */
+    // --- VARIÁVEIS GLOBAIS ---
     let map;
-    let schoolsLayer; // LayerGroup para os pontos
+    let schoolsLayer; 
+    let statesLayer;  
     let legend;
-    
-    // Paleta de Cores (Usuário) - Mapeada do Menor (Index 0) para o Maior (Index 4)
-    // Ordem solicitada: Menor -> 0B4C01 ... Maior -> B0B7C2
-    const PALETTE = [
-        '#0B4C01', // 0: Menor (Dark Green)
-        '#97C03F', // 1: (Lime Green)
-        '#54B6A4', // 2: (Teal)
-        '#039137', // 3: (Green - Atenção: Usuário colocou este perto do topo)
-        '#B0B7C2'  // 4: Maior (Greyish)
+    let ufDataStats = {}; 
+    let maxAlerts = 0;    
+
+    // Cores (devem bater com o CSS .legend-gradient)
+    const PALETTE_COLORS = [
+        '#d9f0a3', // Muito Baixo
+        '#addd8e', // Baixo
+        '#ffffb2', // Médio
+        '#fecc5c', // Alto
+        '#bd0026'  // Crítico
     ];
 
-    // ---------------------------------------------------------
-    // DADOS DE EXEMPLO ATUALIZADOS
-    // ---------------------------------------------------------
+    // Dados de exemplo
     const SAMPLE_DATA = {
         columns: [
-            { label: "NO_ENTIDADE", type: "string" }, // 0
-            { label: "LATITUDE", type: "number" },    // 1
-            { label: "LONGITUDE", type: "number" },   // 2
-            { label: "SG_UF", type: "string" },       // 3
-            { label: "Total de Alertas", type: "number" } // 4 (NOVA COLUNA)
+            { label: "NO_ENTIDADE", type: "string" },
+            { label: "LATITUDE", type: "number" },
+            { label: "LONGITUDE", type: "number" },
+            { label: "SG_UF", type: "string" },
+            { label: "Total Alertas", type: "number" }
         ],
         data: [
-            // DF (Simulando ALTA soma de alertas -> Deve ficar Cinza)
-            ["ESCOLA DF 1", -15.8302, -47.9420, "DF", 50],
-            ["ESCOLA DF 2", -15.8760, -48.0678, "DF", 40],
-            ["ESCOLA DF 3", -15.8442, -47.8961, "DF", 60],
-            
-            // RO (Simulando BAIXA soma de alertas -> Deve ficar Verde Escuro)
-            ["ESCOLA RO 1", -8.7640, -63.8782, "RO", 2],
-            ["ESCOLA RO 2", -8.7275, -63.9090, "RO", 5]
+            ["ESCOLA A (DF)", -15.83, -47.94, "DF", 80], 
+            ["ESCOLA B (DF)", -15.87, -48.06, "DF", 90], 
+            ["ESCOLA C (RO)", -8.76, -63.87, "RO", 5],
+            ["ESCOLA D (SP)", -23.55, -46.63, "SP", 20],
+            ["ESCOLA E (AM)", -3.11, -60.02, "AM", 100]
         ]
     };
 
-    /**
-     * INICIALIZAÇÃO DO MAPA
-     */
     function initMap() {
-        // Centraliza no Brasil
-        map = L.map('map', {
-            zoomControl: false, 
-            preferCanvas: true
-        }).setView([-14.2350, -51.9253], 4);
+        map = L.map('map', { zoomControl: false }).setView([-14.2, -51.9], 4);
+        L.control.zoom({ position: 'topright' }).addTo(map);
 
-        L.control.zoom({
-            position: 'topright'
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap, © CartoDB',
+            opacity: 0.5
         }).addTo(map);
 
-        // Tile Layer Limpo
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            maxZoom: 19
+        const ibgeUrl = 'https://services7.arcgis.com/wyfPsHBH5pLzcvJv/arcgis/rest/services/Limites_geogr%C3%A1ficos_IBGE_2022/FeatureServer/0';
+
+        statesLayer = L.esri.featureLayer({
+            url: ibgeUrl,
+            style: function(feature) {
+                return getStyleForState(feature);
+            },
+            onEachFeature: function(feature, layer) {
+                layer.on('mouseover', function(e) {
+                    const uf = feature.properties.sigla || feature.properties.SIGLA; 
+                    const val = ufDataStats[uf] || 0;
+                    layer.bindTooltip(`<b>${uf}</b>: ${val} Alertas`).openTooltip();
+                    layer.setStyle({ weight: 2, color: '#666', fillOpacity: 0.9 });
+                });
+                layer.on('mouseout', function(e) {
+                    statesLayer.resetStyle(e.target);
+                });
+            }
         }).addTo(map);
 
         schoolsLayer = L.layerGroup().addTo(map);
-
-        // Botão Reset
-        const resetControl = L.Control.extend({
-            options: { position: 'topright' },
-            onAdd: function(map) {
-                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                container.style.backgroundColor = 'white';
-                container.style.width = '30px';
-                container.style.height = '30px';
-                container.style.cursor = 'pointer';
-                container.title = "Ver Tudo";
-                container.innerHTML = '<span style="font-size:16px; font-weight:bold; color:#555;">&#9716;</span>'; 
-                
-                container.onclick = function(){
-                    if (schoolsLayer.getLayers().length > 0) {
-                        const bounds = L.featureGroup(schoolsLayer.getLayers()).getBounds();
-                        if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50] });
-                    } else {
-                        map.setView([-14.2350, -51.9253], 4);
-                    }
-                }
-                return container;
-            }
-        });
-        map.addControl(new resetControl());
+        map.createPane('markersPane');
+        map.getPane('markersPane').style.zIndex = 650; 
     }
 
-    /**
-     * LÓGICA DE PROCESSAMENTO DE DADOS
-     */
-    function onDataReceived(message) {
-        if (!message || !message.data || message.data.length === 0) return;
+    function getStyleForState(feature) {
+        const uf = feature.properties.sigla || feature.properties.SIGLA || feature.properties.UF;
+        const value = ufDataStats[uf] || 0;
+        return {
+            fillColor: getColorByValue(value),
+            weight: 1,
+            opacity: 1,
+            color: 'white', 
+            fillOpacity: 0.75
+        };
+    }
 
+    function getColorByValue(val) {
+        if (maxAlerts === 0) return '#eee'; 
+        const percent = val / maxAlerts;
+        if (percent > 0.8) return PALETTE_COLORS[4]; 
+        if (percent > 0.6) return PALETTE_COLORS[3]; 
+        if (percent > 0.4) return PALETTE_COLORS[2]; 
+        if (percent > 0.2) return PALETTE_COLORS[1]; 
+        return PALETTE_COLORS[0]; 
+    }
+
+    function onDataReceived(message) {
+        if (!message || !message.data) return;
         document.getElementById('loader').style.display = 'block';
 
         const colMap = mapColumns(message.columns);
-        
-        // Se não tiver Lat/Lon, aborta
         if (colMap.lat === -1 || colMap.lon === -1) {
-            // Tentativa de fallback
-            if(message.columns.length >= 3) { colMap.lat = 1; colMap.lon = 2; }
-            else { 
-                document.getElementById('loader').innerText = "Erro: Colunas Lat/Lon não encontradas.";
-                return; 
-            }
+            alert("Erro: Colunas Lat/Lon não encontradas.");
+            document.getElementById('loader').style.display = 'none';
+            return;
         }
 
         schoolsLayer.clearLayers();
-        if (legend) map.removeControl(legend);
-
-        // 1. AGREGAÇÃO POR UF (SOMA de Alertas)
-        const ufStats = {};
+        ufDataStats = {};
+        maxAlerts = 0;
         const validRows = [];
         const hasAlertsCol = colMap.alertas !== -1;
 
@@ -249,82 +198,55 @@
             const lon = parseFloat(row[colMap.lon]);
             if (isNaN(lat) || isNaN(lon)) return;
 
-            const uf = colMap.uf !== -1 ? row[colMap.uf] : "OUTROS";
-            
-            // Inicializa contador
-            if (!ufStats[uf]) ufStats[uf] = 0;
-            
-            // Se tiver coluna de alertas, soma o valor. Se não, conta 1 (densidade)
-            if (hasAlertsCol) {
-                const val = parseFloat(row[colMap.alertas]);
-                ufStats[uf] += isNaN(val) ? 0 : val;
-            } else {
-                ufStats[uf]++;
+            const uf = (colMap.uf !== -1 ? row[colMap.uf] : "").toUpperCase().trim();
+            const valAlerta = hasAlertsCol ? (parseFloat(row[colMap.alertas]) || 0) : 1;
+
+            if (uf) {
+                if (!ufDataStats[uf]) ufDataStats[uf] = 0;
+                ufDataStats[uf] += valAlerta;
             }
-            
-            validRows.push({ row, lat, lon, uf });
+
+            validRows.push({ row, lat, lon, uf, valAlerta });
         });
 
-        // 2. CALCULA ESCALA DE CORES (Min/Max por UF)
-        let maxVal = 0;
-        let minVal = Infinity;
-        for (const uf in ufStats) {
-            if (ufStats[uf] > maxVal) maxVal = ufStats[uf];
-            if (ufStats[uf] < minVal) minVal = ufStats[uf];
+        for (let uf in ufDataStats) {
+            if (ufDataStats[uf] > maxAlerts) maxAlerts = ufDataStats[uf];
         }
-        if (minVal === Infinity) minVal = 0;
 
-        // 3. PLOTA PONTOS
+        statesLayer.eachFeature(function(layer) {
+            const style = getStyleForState(layer.feature);
+            layer.setStyle(style);
+        });
+
         validRows.forEach(item => {
-            const totalUF = ufStats[item.uf]; // Total da UF inteira
-            const color = getColorByValue(totalUF, minVal, maxVal);
-            
             const nome = colMap.nome !== -1 ? item.row[colMap.nome] : "Escola";
-            const valorAlerta = hasAlertsCol ? item.row[colMap.alertas] : 1;
-
-            const circle = L.circleMarker([item.lat, item.lon], {
-                radius: 5,           
-                fillColor: color,    
-                color: "#fff",       
-                weight: 0.5,           
-                opacity: 1,
-                fillOpacity: 0.9    
+            
+            // --- AQUI ESTÁ O AJUSTE DO MARCADOR PEQUENO ---
+            const marker = L.circleMarker([item.lat, item.lon], {
+                radius: 2,              // <--- BEM PEQUENO
+                fillColor: "#2c3e50",   
+                color: "#fff",          
+                weight: 0.5,            // Borda fina
+                opacity: 0.8,
+                fillOpacity: 0.9,
+                pane: 'markersPane'     
             });
 
-            // Tooltip mostra Total da UF e Individual
-            let tooltipText = `<b>${nome}</b><br>${item.uf}`;
-            if (hasAlertsCol) {
-                tooltipText += `<br>Alertas desta escola: ${valorAlerta}`;
-                tooltipText += `<br>Total Alertas na UF: ${totalUF}`;
-            }
+            let popupHtml = `<div class='popup-title'>${nome}</div>`;
+            popupHtml += `UF: ${item.uf} <br> Alertas desta escola: ${item.valAlerta}`;
+            marker.bindPopup(popupHtml);
 
-            circle.bindTooltip(tooltipText);
-            circle.bindPopup(buildPopupContent(item.row, message.columns));
-
-            schoolsLayer.addLayer(circle);
+            schoolsLayer.addLayer(marker);
         });
 
+        updateLegend(hasAlertsCol);
+
         if (validRows.length > 0) {
-            const bounds = L.featureGroup(schoolsLayer.getLayers()).getBounds();
-            if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50] });
+             const group = L.featureGroup(schoolsLayer.getLayers());
+             map.fitBounds(group.getBounds(), { padding: [50, 50] });
         }
 
-        createLegend(minVal, maxVal, hasAlertsCol);
-
         document.getElementById('loader').style.display = 'none';
-    }
-
-    function getColorByValue(value, min, max) {
-        if (min === max) return PALETTE[4]; 
-
-        const range = max - min;
-        const step = range / 5;
-        
-        if (value < min + step) return PALETTE[0];   
-        if (value < min + step * 2) return PALETTE[1];
-        if (value < min + step * 3) return PALETTE[2];
-        if (value < min + step * 4) return PALETTE[3];
-        return PALETTE[4];                           
     }
 
     function mapColumns(columns) {
@@ -333,76 +255,51 @@
             const label = col.label.toUpperCase();
             if (label.includes("LATIT")) map.lat = index;
             else if (label.includes("LONGIT")) map.lon = index;
-            else if (label.includes("NOME") || label.includes("ENTIDADE") || label.includes("ESCOLA")) map.nome = index;
-            else if (label.includes("UF") || label.includes("ESTADO")) map.uf = index;
-            // Mapeia coluna de Alertas
+            else if (label.includes("NOME") || label.includes("ENTIDADE")) map.nome = index;
+            else if (label.includes("UF") || label.includes("ESTADO") || label.includes("SG_UF")) map.uf = index;
             else if (label.includes("ALERTA") || label.includes("TOTAL") || label.includes("SCORE")) map.alertas = index;
         });
         return map;
     }
 
-    function buildPopupContent(row, columns) {
-        let html = `<div style="max-height:200px; overflow-y:auto;">`;
-        html += `<table class='popup-table'>`;
-        columns.forEach((col, i) => {
-            const val = row[i];
-            if (val !== null && val !== undefined && val !== "") {
-                html += `<tr><td class='popup-label'>${col.label}:</td><td>${val}</td></tr>`;
-            }
-        });
-        html += `</table></div>`;
-        return html;
-    }
-
-    function createLegend(min, max, hasAlerts) {
+    function updateLegend(hasAlerts) {
+        if (legend) map.removeControl(legend);
+        
         legend = L.control({position: 'bottomright'});
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info legend');
+            const title = hasAlerts ? "Total Alertas" : "Densidade";
             
-            const titulo = hasAlerts ? "Total de Alertas (por UF)" : "Densidade de Escolas (por UF)";
-            div.innerHTML = `<h4>${titulo}</h4>`;
-            
-            const labels = [
-                { color: PALETTE[4], text: "Muito Alto (Crítico)" },
-                { color: PALETTE[3], text: "Alto" },
-                { color: PALETTE[2], text: "Médio" },
-                { color: PALETTE[1], text: "Baixo" },
-                { color: PALETTE[0], text: "Muito Baixo" }
-            ];
-
-            labels.forEach(item => {
-                div.innerHTML += `
-                    <div class="legend-item">
-                        <i style="background:${item.color}"></i> 
-                        <span>${item.text}</span>
-                    </div>`;
-            });
-
+            div.innerHTML = `
+                <h4>${title}</h4>
+                <div class="legend-scale-container">
+                    <div class="legend-gradient"></div>
+                    <div class="legend-labels">
+                        <span>Menor</span>
+                        <span>Maior</span>
+                    </div>
+                </div>
+            `;
             return div;
         };
         legend.addTo(map);
     }
 
-    // --- SETUP MENSAGENS SAS ---
     function setupSasHandlers() {
         if (window.addEventListener) window.addEventListener("message", onMessage, false);
         else window.attachEvent("onmessage", onMessage);
     }
-
     function onMessage(event) {
         if (event && event.data && (event.data.version || (event.data.columns && event.data.data))) {
              onDataReceived(event.data);
         }
     }
 
-    // --- BOOTSTRAP ---
     initMap();
-
     if (window.sasMessagingMissing || window.sasContentMissing || !window.messagingUtil) {
         setupSasHandlers();
-        // Fallback
-        if (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            setTimeout(() => onDataReceived(SAMPLE_DATA), 500);
+        if (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || true) {
+             setTimeout(() => onDataReceived(SAMPLE_DATA), 1000); 
         }
     } else {
         messagingUtil.setOnDataReceivedCallback(onDataReceived);
