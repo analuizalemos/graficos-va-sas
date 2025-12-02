@@ -9,71 +9,47 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f4f4; }
-        #map { width: 100%; height: 100%; z-index: 1; background: #fff; }
-
-        /* NOVA LEGENDA HORIZONTAL */
-        .legend {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 8px 12px;
-            color: #333;
-            box-shadow: 0 0 10px rgba(0,0,0,0.15);
-            border-radius: 4px;
-            font-size: 11px;
-            line-height: 1.2;
-            min-width: 200px;
-        }
-        .legend h4 { 
-            margin: 0 0 6px 0; 
-            font-size: 11px; 
-            font-weight: bold; 
-            text-transform: uppercase;
-            color: #555;
-            text-align: center;
-        }
-        .legend-scale-container {
-            display: flex;
-            flex-direction: column;
-        }
-        .legend-gradient {
-            height: 12px;
-            width: 100%;
-            background: linear-gradient(to right, 
-                #d9f0a3 0%, 
-                #addd8e 25%, 
-                #ffffb2 50%, 
-                #fecc5c 75%, 
-                #bd0026 100%);
-            border-radius: 2px;
-            border: 1px solid #ccc;
-        }
-        .legend-labels {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 4px;
-            color: #666;
-            font-weight: 600;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; }
+        #map { width: 100%; height: 100%; z-index: 1; }
 
         /* Loader */
         #loader {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: white; padding: 20px; border-radius: 8px; z-index: 9999;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2); display: none; font-weight: bold;
+            background: rgba(255,255,255,0.9); padding: 20px 40px; border-radius: 8px; z-index: 9999;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: none; font-weight: bold; color: #333;
         }
 
-        /* Popup */
-        .popup-title { font-weight: bold; border-bottom: 1px solid #ddd; margin-bottom: 5px; padding-bottom: 5px; }
-        .popup-table td { padding: 2px 5px; font-size: 0.9em; }
-        
+        /* Estilo do Popup */
+        .leaflet-popup-content-wrapper { border-radius: 6px; padding: 0; }
+        .leaflet-popup-content { margin: 10px 14px; line-height: 1.5; }
+        .popup-title { 
+            font-weight: bold; 
+            font-size: 1.1em; 
+            margin-bottom: 6px; 
+            border-bottom: 2px solid #d9534f; 
+            padding-bottom: 4px; 
+            color: #333; 
+        }
+        .popup-table td { padding: 2px 5px; font-size: 0.9em; vertical-align: top; }
+        .popup-label { font-weight: 600; color: #666; text-align: right; white-space: nowrap; }
+
+        /* Estilo do Ícone (Pin) */
+        .custom-pin-icon {
+            background: transparent;
+            border: none;
+        }
+        /* Sombra leve para o pin se destacar no mapa colorido */
+        .pin-svg {
+            filter: drop-shadow(0px 3px 2px rgba(0,0,0,0.4));
+        }
     </style>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
-    <!-- Esri Leaflet (Para carregar os limites do IBGE) -->
+    <!-- Esri Leaflet (Necessário para carregar o contorno do Brasil/IBGE) -->
     <script src="https://unpkg.com/esri-leaflet@3.0.10/dist/esri-leaflet.js"></script>
-
+    
     <!-- Scripts SAS -->
     <script src="../../util/messagingUtil.js" onerror="window.sasMessagingMissing=true"></script>
     <script src="../../util/contentUtil.js" onerror="window.sasContentMissing=true"></script>
@@ -81,225 +57,187 @@
 </head>
 <body>
 
-    <div id="loader">Carregando dados...</div>
+    <div id="loader">Carregando locais...</div>
     <div id="map"></div>
 
 <script>
     // --- VARIÁVEIS GLOBAIS ---
     let map;
     let schoolsLayer; 
-    let statesLayer;  
-    let legend;
-    let ufDataStats = {}; 
-    let maxAlerts = 0;    
+    
+    // Ícone SVG Pin (Vermelho)
+    const pinSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" class="pin-svg" width="30" height="40">
+            <!-- FontAwesome Location Dot Icon path -->
+            <path fill="#d9534f" stroke="#7a1f1c" stroke-width="10" d="M384 192c0 87.4-117 243-168.3 307.2c-12.3 15.3-35.1 15.3-47.4 0C117 435 0 279.4 0 192C0 86 86 0 192 0s192 86 192 192zM192 272c44.2 0 80-35.8 80-80s-35.8-80-80-80s-80 35.8-80 80s35.8 80 80 80z"/>
+        </svg>
+    `;
 
-    // Cores (devem bater com o CSS .legend-gradient)
-    const PALETTE_COLORS = [
-        '#d9f0a3', // Muito Baixo
-        '#addd8e', // Baixo
-        '#ffffb2', // Médio
-        '#fecc5c', // Alto
-        '#bd0026'  // Crítico
-    ];
-
-    // Dados de exemplo
+    // Dados de exemplo (Fallback)
     const SAMPLE_DATA = {
         columns: [
             { label: "NO_ENTIDADE", type: "string" },
             { label: "LATITUDE", type: "number" },
             { label: "LONGITUDE", type: "number" },
-            { label: "SG_UF", type: "string" },
-            { label: "Total Alertas", type: "number" }
+            { label: "SG_UF", type: "string" }
         ],
         data: [
-            ["ESCOLA A (DF)", -15.83, -47.94, "DF", 80], 
-            ["ESCOLA B (DF)", -15.87, -48.06, "DF", 90], 
-            ["ESCOLA C (RO)", -8.76, -63.87, "RO", 5],
-            ["ESCOLA D (SP)", -23.55, -46.63, "SP", 20],
-            ["ESCOLA E (AM)", -3.11, -60.02, "AM", 100]
+            ["ESCOLA TESTE 1 (DF)", -15.83, -47.94, "DF"], 
+            ["ESCOLA TESTE 2 (DF)", -15.87, -48.06, "DF"], 
+            ["ESCOLA TESTE 3 (RO)", -8.76, -63.87, "RO"]
         ]
     };
 
     function initMap() {
+        // Inicializa o mapa centralizado no Brasil
         map = L.map('map', { zoomControl: false }).setView([-14.2, -51.9], 4);
+        
+        // Controle de Zoom no topo direito
         L.control.zoom({ position: 'topright' }).addTo(map);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap, © CartoDB',
-            opacity: 0.5
+        // MAPA BASE: OpenStreetMap Standard (Colorido e Vibrante)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
         }).addTo(map);
 
+        // -----------------------------------------------------------
+        // CAMADA DE DESTAQUE DO BRASIL (IBGE) - APENAS CONTORNO
+        // -----------------------------------------------------------
         const ibgeUrl = 'https://services7.arcgis.com/wyfPsHBH5pLzcvJv/arcgis/rest/services/Limites_geogr%C3%A1ficos_IBGE_2022/FeatureServer/0';
-
-        statesLayer = L.esri.featureLayer({
+        
+        L.esri.featureLayer({
             url: ibgeUrl,
-            style: function(feature) {
-                return getStyleForState(feature);
+            style: {
+                color: '#4a5a6a', // Cor do contorno (Cinza Azulado Escuro)
+                weight: 1.5,      // Espessura da linha
+                fill: false,      // Sem preenchimento (transparente)
+                opacity: 0.8      // Opacidade da linha
             },
-            onEachFeature: function(feature, layer) {
-                layer.on('mouseover', function(e) {
-                    const uf = feature.properties.sigla || feature.properties.SIGLA; 
-                    const val = ufDataStats[uf] || 0;
-                    layer.bindTooltip(`<b>${uf}</b>: ${val} Alertas`).openTooltip();
-                    layer.setStyle({ weight: 2, color: '#666', fillOpacity: 0.9 });
-                });
-                layer.on('mouseout', function(e) {
-                    statesLayer.resetStyle(e.target);
-                });
-            }
+            // Desativa interação com o contorno para não atrapalhar o clique nos pins
+            interactive: false 
         }).addTo(map);
 
+        // Grupo de camadas para os pins (Adicionado DEPOIS para ficar por cima do contorno)
         schoolsLayer = L.layerGroup().addTo(map);
-        map.createPane('markersPane');
-        map.getPane('markersPane').style.zIndex = 650; 
-    }
-
-    function getStyleForState(feature) {
-        const uf = feature.properties.sigla || feature.properties.SIGLA || feature.properties.UF;
-        const value = ufDataStats[uf] || 0;
-        return {
-            fillColor: getColorByValue(value),
-            weight: 1,
-            opacity: 1,
-            color: 'white', 
-            fillOpacity: 0.75
-        };
-    }
-
-    function getColorByValue(val) {
-        if (maxAlerts === 0) return '#eee'; 
-        const percent = val / maxAlerts;
-        if (percent > 0.8) return PALETTE_COLORS[4]; 
-        if (percent > 0.6) return PALETTE_COLORS[3]; 
-        if (percent > 0.4) return PALETTE_COLORS[2]; 
-        if (percent > 0.2) return PALETTE_COLORS[1]; 
-        return PALETTE_COLORS[0]; 
     }
 
     function onDataReceived(message) {
         if (!message || !message.data) return;
+        
         document.getElementById('loader').style.display = 'block';
 
         const colMap = mapColumns(message.columns);
+        
+        // Verificação básica de colunas
         if (colMap.lat === -1 || colMap.lon === -1) {
-            alert("Erro: Colunas Lat/Lon não encontradas.");
-            document.getElementById('loader').style.display = 'none';
-            return;
+            // Tenta fallback simples se as colunas não tiverem nomes padrão
+            if(message.columns.length >= 3) { 
+                colMap.lat = 1; 
+                colMap.lon = 2; 
+            } else {
+                console.error("Colunas Latitude/Longitude não encontradas.");
+                document.getElementById('loader').innerText = "Erro: Lat/Lon não identificadas.";
+                return;
+            }
         }
 
         schoolsLayer.clearLayers();
-        ufDataStats = {};
-        maxAlerts = 0;
-        const validRows = [];
-        const hasAlertsCol = colMap.alertas !== -1;
+        const validMarkers = [];
 
         message.data.forEach(row => {
             const lat = parseFloat(row[colMap.lat]);
             const lon = parseFloat(row[colMap.lon]);
-            if (isNaN(lat) || isNaN(lon)) return;
-
-            const uf = (colMap.uf !== -1 ? row[colMap.uf] : "").toUpperCase().trim();
-            const valAlerta = hasAlertsCol ? (parseFloat(row[colMap.alertas]) || 0) : 1;
-
-            if (uf) {
-                if (!ufDataStats[uf]) ufDataStats[uf] = 0;
-                ufDataStats[uf] += valAlerta;
-            }
-
-            validRows.push({ row, lat, lon, uf, valAlerta });
-        });
-
-        for (let uf in ufDataStats) {
-            if (ufDataStats[uf] > maxAlerts) maxAlerts = ufDataStats[uf];
-        }
-
-        statesLayer.eachFeature(function(layer) {
-            const style = getStyleForState(layer.feature);
-            layer.setStyle(style);
-        });
-
-        validRows.forEach(item => {
-            const nome = colMap.nome !== -1 ? item.row[colMap.nome] : "Escola";
             
-            // --- AQUI ESTÁ O AJUSTE DO MARCADOR PEQUENO ---
-            const marker = L.circleMarker([item.lat, item.lon], {
-                radius: 2,              // <--- BEM PEQUENO
-                fillColor: "#2c3e50",   
-                color: "#fff",          
-                weight: 0.5,            // Borda fina
-                opacity: 0.8,
-                fillOpacity: 0.9,
-                pane: 'markersPane'     
+            // Ignora coordenadas inválidas
+            if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) return;
+
+            const nome = colMap.nome !== -1 ? row[colMap.nome] : "Local";
+            
+            // Criação do Ícone Customizado (Pin)
+            const icon = L.divIcon({
+                className: 'custom-pin-icon',
+                html: pinSvg,
+                iconSize: [30, 40], // Largura, Altura
+                iconAnchor: [15, 40], // Ponto que toca o mapa (Metade da largura, Altura total)
+                popupAnchor: [0, -35] // Onde o popup abre em relação ao anchor
             });
 
-            let popupHtml = `<div class='popup-title'>${nome}</div>`;
-            popupHtml += `UF: ${item.uf} <br> Alertas desta escola: ${item.valAlerta}`;
-            marker.bindPopup(popupHtml);
+            const marker = L.marker([lat, lon], { icon: icon });
+
+            // Tooltip simples (nome ao passar o mouse)
+            marker.bindTooltip(`<b>${nome}</b>`, { 
+                direction: 'top',
+                offset: [0, -35]
+            });
+
+            // Popup detalhado (tabela ao clicar)
+            marker.bindPopup(buildPopupContent(row, message.columns, nome));
 
             schoolsLayer.addLayer(marker);
+            validMarkers.push(marker);
         });
 
-        updateLegend(hasAlertsCol);
-
-        if (validRows.length > 0) {
-             const group = L.featureGroup(schoolsLayer.getLayers());
-             map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        // Ajustar zoom para mostrar todos os pins
+        if (validMarkers.length > 0) {
+            // Cria um grupo temporário apenas para calcular o bounds
+            const group = L.featureGroup(validMarkers);
+            map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        } else {
+            // Se não houver pontos válidos após filtro, volta pro Brasil
+            map.setView([-14.2, -51.9], 4);
         }
 
         document.getElementById('loader').style.display = 'none';
     }
 
+    // Identifica colunas pelo nome
     function mapColumns(columns) {
-        const map = { lat: -1, lon: -1, nome: -1, uf: -1, alertas: -1 };
+        const map = { lat: -1, lon: -1, nome: -1 };
         columns.forEach((col, index) => {
             const label = col.label.toUpperCase();
             if (label.includes("LATIT")) map.lat = index;
             else if (label.includes("LONGIT")) map.lon = index;
-            else if (label.includes("NOME") || label.includes("ENTIDADE")) map.nome = index;
-            else if (label.includes("UF") || label.includes("ESTADO") || label.includes("SG_UF")) map.uf = index;
-            else if (label.includes("ALERTA") || label.includes("TOTAL") || label.includes("SCORE")) map.alertas = index;
+            else if (label.includes("NOME") || label.includes("ENTIDADE") || label.includes("ESCOLA")) map.nome = index;
         });
         return map;
     }
 
-    function updateLegend(hasAlerts) {
-        if (legend) map.removeControl(legend);
-        
-        legend = L.control({position: 'bottomright'});
-        legend.onAdd = function (map) {
-            const div = L.DomUtil.create('div', 'info legend');
-            const title = hasAlerts ? "Total Alertas" : "Densidade";
-            
-            div.innerHTML = `
-                <h4>${title}</h4>
-                <div class="legend-scale-container">
-                    <div class="legend-gradient"></div>
-                    <div class="legend-labels">
-                        <span>Menor</span>
-                        <span>Maior</span>
-                    </div>
-                </div>
-            `;
-            return div;
-        };
-        legend.addTo(map);
+    // Constrói o HTML interno do popup
+    function buildPopupContent(row, columns, title) {
+        let html = `<div class='popup-title'>${title}</div>`;
+        html += `<table class='popup-table'>`;
+        columns.forEach((col, i) => {
+            const val = row[i];
+            if (val !== null && val !== undefined && val !== "") {
+                html += `<tr><td class='popup-label'>${col.label}:</td><td>${val}</td></tr>`;
+            }
+        });
+        html += `</table>`;
+        return html;
     }
 
+    // --- SETUP SAS MESSAGE HANDLER ---
     function setupSasHandlers() {
         if (window.addEventListener) window.addEventListener("message", onMessage, false);
         else window.attachEvent("onmessage", onMessage);
     }
+    
     function onMessage(event) {
         if (event && event.data && (event.data.version || (event.data.columns && event.data.data))) {
              onDataReceived(event.data);
         }
     }
 
+    // Inicialização
     initMap();
+
+    // Detecção de ambiente (SAS vs Local)
     if (window.sasMessagingMissing || window.sasContentMissing || !window.messagingUtil) {
         setupSasHandlers();
+        // Se estiver local, carrega exemplo
         if (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || true) {
-             setTimeout(() => onDataReceived(SAMPLE_DATA), 1000); 
+             setTimeout(() => onDataReceived(SAMPLE_DATA), 1000); // 1s delay para dar tempo do mapa carregar
         }
     } else {
         messagingUtil.setOnDataReceivedCallback(onDataReceived);
