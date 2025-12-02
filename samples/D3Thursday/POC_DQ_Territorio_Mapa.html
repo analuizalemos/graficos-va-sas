@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Escolas DrillDown - SAS DDC</title>
+    <title>Mapa DrillDown + Cluster Global - SAS DDC</title>
 
-    <!-- Leaflet CSS -->
+    <!-- 1. Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- 2. MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; }
@@ -22,69 +25,43 @@
 
         /* Controles de Navegação */
         .nav-controls {
-            position: absolute;
-            top: 10px;
-            left: 50px;
-            z-index: 1000;
-            display: flex;
-            gap: 10px;
+            position: absolute; top: 10px; left: 50px; z-index: 1000; display: flex; gap: 10px;
         }
-
         .nav-btn {
-            background: white;
-            border: 1px solid #ccc;
-            padding: 8px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            color: #555;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            transition: all 0.2s;
+            background: white; border: 1px solid #ccc; padding: 8px 15px; border-radius: 4px;
+            cursor: pointer; font-size: 13px; font-weight: 600; color: #555;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; transition: all 0.2s;
         }
         .nav-btn:hover { background: #f8f8f8; color: #333; }
-        .nav-btn.active { border-left: 4px solid #d9534f; }
         .nav-btn span { margin-left: 5px; }
 
         /* Legenda Horizontal */
         .legend {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 8px 12px;
-            color: #333;
-            box-shadow: 0 0 10px rgba(0,0,0,0.15);
-            border-radius: 4px;
-            font-size: 11px;
-            min-width: 200px;
-            position: absolute;
-            bottom: 20px;
-            right: 10px;
-            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 8px 12px; color: #333;
+            box-shadow: 0 0 10px rgba(0,0,0,0.15); border-radius: 4px; font-size: 11px;
+            min-width: 200px; position: absolute; bottom: 20px; right: 10px; z-index: 1000;
         }
         .legend-gradient {
-            height: 10px;
-            width: 100%;
+            height: 10px; width: 100%;
             background: linear-gradient(to right, #d9f0a3, #addd8e, #ffffb2, #fecc5c, #bd0026);
-            border-radius: 2px;
-            margin-top: 5px;
+            border-radius: 2px; margin-top: 5px;
         }
         .legend-labels { display: flex; justify-content: space-between; margin-top: 2px; color: #666; font-size: 10px; }
 
         /* Estilo Popup */
-        .popup-title { font-weight: bold; border-bottom: 2px solid #d9534f; margin-bottom: 5px; padding-bottom: 2px; }
+        .popup-title { font-weight: bold; border-bottom: 2px solid #0056b3; margin-bottom: 5px; padding-bottom: 2px; }
         .popup-table td { font-size: 0.9em; padding: 2px; }
 
-        /* Pin Style */
-        .custom-pin-icon { background: transparent; border: none; }
-        .pin-svg { filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3)); }
-
+        /* Marcador Customizado (Ponto Azul Simples) dentro do Cluster */
+        .custom-pin { /* Classe base */ }
     </style>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Esri Leaflet -->
     <script src="https://unpkg.com/esri-leaflet@3.0.10/dist/esri-leaflet.js"></script>
+    <!-- MarkerCluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     
     <!-- Scripts SAS -->
     <script src="../../util/messagingUtil.js" onerror="window.sasMessagingMissing=true"></script>
@@ -108,37 +85,27 @@
 
 <script>
     // --- CONFIGURAÇÃO ---
-    // Gradiente: Verde Claro -> Amarelo -> Vermelho
     const PALETTE = ['#d9f0a3', '#addd8e', '#ffffb2', '#fecc5c', '#bd0026'];
-    
-    // URL do Serviço de Mapas (IBGE 2022 via ArcGIS)
-    // Layer 1 = Unidades da Federação (Estados)
-    // Layer 2 = Municípios (Geralmente)
+    const SCHOOL_COLOR = '#0056b3'; // Azul para os pontos individuais
     const MAP_SERVICE_URL = 'https://services7.arcgis.com/wyfPsHBH5pLzcvJv/arcgis/rest/services/Limites_geogr%C3%A1ficos_IBGE_2022/FeatureServer';
 
     // --- ESTADO DA APLICAÇÃO ---
     let state = {
-        viewLevel: 'BRASIL', // 'BRASIL', 'UF', 'MUNICIPIO'
+        viewLevel: 'BRASIL', // 'BRASIL' -> 'UF' -> 'MUNICIPIO'
         selectedUF: null,
         selectedCity: null,
         data: [], 
         colMap: {}, 
         stats: { uf: {}, city: {} }, 
-        maxVal: { uf: 0, city: 0 }
+        maxVal: { uf: 0, city: 0 },
+        hasAlerts: false
     };
 
     let map;
-    let esriLayer; // Camada dinâmica Esri
-    let pinsLayer; // Camada de Pontos
-    let legendControl;
+    let esriLayer; 
+    let markersCluster; // Grupo de Cluster
 
-    // --- ÍCONE ---
-    const pinSvg = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" class="pin-svg" width="20" height="26">
-            <path fill="#d9534f" stroke="#7a1f1c" stroke-width="10" d="M384 192c0 87.4-117 243-168.3 307.2c-12.3 15.3-35.1 15.3-47.4 0C117 435 0 279.4 0 192C0 86 86 0 192 0s192 86 192 192zM192 272c44.2 0 80-35.8 80-80s-35.8-80-80-80s-80 35.8-80 80s35.8 80 80 80z"/>
-        </svg>`;
-
-    // --- DADOS EXEMPLO ---
+    // --- DADOS DE AMOSTRA ---
     const SAMPLE_DATA = {
         columns: [
             { label: "NO_ENTIDADE", type: "string" }, { label: "LATITUDE", type: "number" },
@@ -146,9 +113,12 @@
             { label: "NO_MUNICIPIO", type: "string" }, { label: "Total Alertas", type: "number" }
         ],
         data: [
-            ["ESCOLA A", -15.83, -47.94, "DF", "Brasília", 80], 
-            ["ESCOLA B", -23.55, -46.63, "SP", "São Paulo", 20],
-            ["ESCOLA C", -22.90, -43.17, "RJ", "Rio de Janeiro", 50]
+            ["EMEF PROF HERBERT DE ALENCAR", -8.764006, -63.878266, "RO", "Porto Velho", 10],
+            ["EEEFM DR OSWALDO PIANNA", -8.727547, -63.909055, "RO", "Porto Velho", 5],
+            ["EEEFM MARIANA", -8.771356, -63.824268, "RO", "Porto Velho", 8],
+            ["C EDUCACIONAL DOCE INFANCIA SUL", -16.031978, -48.065945, "DF", "Brasília", 25],
+            ["COL MILITAR TIRADENTES", -15.830211, -47.942060, "DF", "Brasília", 50],
+            ["ESCOLA SP 1", -23.5505, -46.6333, "SP", "São Paulo", 100]
         ]
     };
 
@@ -156,16 +126,39 @@
         map = L.map('map', { zoomControl: false }).setView([-14.2, -51.9], 4);
         L.control.zoom({ position: 'topright' }).addTo(map);
 
-        // Mapa Base Colorido
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap', maxZoom: 19
         }).addTo(map);
 
-        pinsLayer = L.layerGroup().addTo(map);
+        // Inicializa Cluster (Vazio por enquanto)
+        markersCluster = L.markerClusterGroup({
+            showCoverageOnHover: false,
+            maxClusterRadius: 40,
+            spiderfyOnMaxZoom: true
+        });
+        map.addLayer(markersCluster);
+
         createLegend();
     }
 
-    // --- PROCESSAMENTO DE DADOS ---
+    // --- UTILS ---
+    function normalizeText(str) {
+        if (!str) return "";
+        return str.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+    }
+
+    function parseSasNumber(value) {
+        if (typeof value === 'number') return value;
+        if (!value) return 0;
+        if (typeof value === 'string') {
+            const clean = value.trim().replace(',', '.');
+            const num = parseFloat(clean);
+            return isNaN(num) ? 0 : num;
+        }
+        return 0;
+    }
+
+    // --- PROCESSAMENTO ---
     function onDataReceived(message) {
         if (!message || !message.data) return;
         document.getElementById('loader').style.display = 'block';
@@ -177,16 +170,24 @@
                 if(message.columns.length >= 3) { state.colMap.lat = 1; state.colMap.lon = 2; }
             }
 
-            state.data = message.data.filter(r => r[state.colMap.lat] && r[state.colMap.lon]);
+            // Filtra e armazena dados
+            state.data = message.data.filter(r => {
+                const lat = parseSasNumber(r[state.colMap.lat]);
+                const lon = parseSasNumber(r[state.colMap.lon]);
+                return lat !== 0 && lon !== 0;
+            });
 
-            if (state.data.length === 1) {
-                document.getElementById('btn-zoom-pin').style.display = 'flex';
-            } else {
-                document.getElementById('btn-zoom-pin').style.display = 'none';
-            }
+            document.getElementById('btn-zoom-pin').style.display = (state.data.length === 1) ? 'flex' : 'none';
 
+            // 1. Calcula estatísticas (Cores dos estados)
             calculateAggregations();
-            renderView();
+            
+            // 2. Renderiza Clusters Globais (Mostra escolas sempre, em todos os níveis)
+            updateClusters();
+
+            // 3. Renderiza Contexto (Estados/Municípios)
+            renderContextLayer(); 
+            
             updateNavUI();
 
             document.getElementById('loader').style.display = 'none';
@@ -196,13 +197,12 @@
     function calculateAggregations() {
         state.stats = { uf: {}, city: {} };
         state.maxVal = { uf: 0, city: 0 };
-        
-        const hasAlerts = state.colMap.alertas !== -1;
+        state.hasAlerts = state.colMap.alertas !== -1;
 
         state.data.forEach(row => {
-            const uf = (row[state.colMap.uf] || "OUTROS").trim().toUpperCase();
-            const city = (row[state.colMap.city] || "OUTROS").trim().toUpperCase();
-            const val = hasAlerts ? (parseFloat(row[state.colMap.alertas]) || 0) : 1;
+            const uf = normalizeText(row[state.colMap.uf] || "OUTROS");
+            const city = normalizeText(row[state.colMap.city] || "OUTROS");
+            const val = state.hasAlerts ? parseSasNumber(row[state.colMap.alertas]) : 1;
 
             if (!state.stats.uf[uf]) state.stats.uf[uf] = 0;
             state.stats.uf[uf] += val;
@@ -216,9 +216,51 @@
         state.maxVal.city = Math.max(...Object.values(state.stats.city), 1);
     }
 
-    // --- LÓGICA DE RENDERIZAÇÃO (Drill-Down) ---
-    function renderView() {
-        pinsLayer.clearLayers();
+    // --- ATUALIZAÇÃO DOS PONTOS (CLUSTERS) ---
+    // Agora separado do drill-down para ser Global
+    function updateClusters() {
+        markersCluster.clearLayers();
+        
+        const newMarkers = [];
+        state.data.forEach(row => {
+            const lat = parseSasNumber(row[state.colMap.lat]);
+            const lon = parseSasNumber(row[state.colMap.lon]);
+            const nome = state.colMap.nome !== -1 ? row[state.colMap.nome] : "Escola";
+
+            // Ícone de Bolinha Azul
+            const markerHtmlStyles = `
+                background-color: ${SCHOOL_COLOR};
+                width: 12px; height: 12px; display: block;
+                border-radius: 50%; border: 2px solid #fff;
+                box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+            `;
+            
+            const customIcon = L.divIcon({
+                className: "custom-pin",
+                html: `<span style="${markerHtmlStyles}"></span>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+                popupAnchor: [0, -8]
+            });
+
+            const marker = L.marker([lat, lon], { icon: customIcon });
+            marker.bindTooltip(`<b>${nome}</b>`, { direction: 'top', offset: [0, -10] });
+            marker.bindPopup(buildPopupContent(row));
+            
+            newMarkers.push(marker);
+        });
+
+        if (newMarkers.length > 0) {
+            markersCluster.addLayers(newMarkers);
+            // Opcional: só dá fitBounds na primeira carga se não estiver focado
+            if (!state.selectedUF) {
+                 // map.fitBounds(markersCluster.getBounds(), { padding: [50, 50] });
+            }
+        }
+    }
+
+    // --- RENDERIZAÇÃO DO CONTEXTO (POLÍGONOS) ---
+    function renderContextLayer() {
         if (esriLayer) map.removeLayer(esriLayer);
 
         if (state.viewLevel === 'BRASIL') {
@@ -226,33 +268,40 @@
         } else if (state.viewLevel === 'UF') {
             loadMunicipalities(state.selectedUF);
         } else if (state.viewLevel === 'MUNICIPIO') {
-            renderPins(state.selectedUF, state.selectedCity);
+            // No nível município, não precisamos carregar mais polígonos, 
+            // mas mantemos o zoom. O cluster já mostra as escolas.
         }
     }
 
-    // 1. Carregar Estados (Nível 1) - Camada 1
+    // Nível 1: Estados
     function loadBrazilStates() {
         esriLayer = L.esri.featureLayer({
-            url: MAP_SERVICE_URL + '/1', // <--- CORRIGIDO: /1 para UFs
+            url: MAP_SERVICE_URL + '/1', 
             style: function(feature) {
-                const key = (feature.properties.SIGLA || feature.properties.UF || "").toUpperCase();
+                const p = feature.properties;
+                const rawName = p.SIGLA || p.SIGLA_UF || p.UF || p.NM_UF || "";
+                const key = normalizeText(rawName);
                 const val = state.stats.uf[key] || 0;
+                
                 return {
-                    fillColor: getColor(val, state.maxVal.uf),
-                    weight: 1, opacity: 1, color: 'white', fillOpacity: 0.75
+                    fillColor: getColorLog(val, state.maxVal.uf),
+                    weight: 1, opacity: 1, color: 'white', fillOpacity: 0.6 // Opacidade ajustada para ver clusters
                 };
             },
             onEachFeature: function(feature, layer) {
-                const uf = (feature.properties.SIGLA || feature.properties.UF || "UF").toUpperCase();
-                const val = state.stats.uf[uf] || 0;
+                const p = feature.properties;
+                const rawName = p.SIGLA || p.SIGLA_UF || p.UF || p.NM_UF || "UF";
+                const ufKey = normalizeText(rawName);
+                const val = state.stats.uf[ufKey] || 0;
                 
-                layer.bindTooltip(`<b>${uf}</b>: ${val}`, { direction:'center', permanent: false});
+                // Tooltip só aparece se não tiver cobrindo um cluster (Leaflet gerencia z-index)
+                layer.bindTooltip(`<b>${rawName}</b><br>Nível de Alerta da Região`, { direction:'center', permanent: false});
                 
                 layer.on('click', function(e) {
-                    state.selectedUF = uf;
+                    state.selectedUF = ufKey;
                     state.viewLevel = 'UF';
                     map.fitBounds(e.target.getBounds());
-                    renderView();
+                    renderContextLayer();
                     updateNavUI();
                 });
                 
@@ -264,30 +313,33 @@
         if(!state.selectedUF) map.setView([-14.2, -51.9], 4);
     }
 
-    // 2. Carregar Municípios (Nível 2) - Camada 2
+    // Nível 2: Municípios
     function loadMunicipalities(ufSigla) {
         esriLayer = L.esri.featureLayer({
-            url: MAP_SERVICE_URL + '/2', // <--- CORRIGIDO: /2 para Municípios (Standard)
-            // Se o mapa mostrar a camada errada, tente /3 ou /4. Mas /2 é comum se 0=Região.
+            url: MAP_SERVICE_URL + '/2', 
             style: function(feature) {
-                const nomeCidade = (feature.properties.NOME || feature.properties.MUNICÍPIO || "").toUpperCase();
-                const key = `${state.selectedUF}-${nomeCidade}`; 
-                const val = state.stats.city[key] || state.stats.city[`OUTROS-${nomeCidade}`] || 0;
+                const p = feature.properties;
+                const rawName = p.NOME || p.NM_MUN || p.MUNICÍPIO || "";
+                const cityName = normalizeText(rawName);
+                const key = `${state.selectedUF}-${cityName}`; 
+                const val = state.stats.city[key] || 0;
                 
                 return {
-                    fillColor: getColor(val, state.maxVal.city),
-                    weight: 0.5, opacity: 1, color: '#eee', fillOpacity: 0.7
+                    fillColor: getColorLog(val, state.maxVal.city),
+                    weight: 0.5, opacity: 1, color: '#eee', fillOpacity: 0.5
                 };
             },
             onEachFeature: function(feature, layer) {
-                const nomeCidade = (feature.properties.NOME || "").toUpperCase();
-                
-                layer.bindTooltip(`<b>${nomeCidade}</b>`, { direction:'center'});
+                const rawName = feature.properties.NOME || feature.properties.NM_MUN || "";
+                const cityName = normalizeText(rawName);
+
+                layer.bindTooltip(`<b>${rawName}</b>`, { direction:'center'});
 
                 layer.on('click', function(e) {
-                    state.selectedCity = nomeCidade;
+                    state.selectedCity = cityName;
                     state.viewLevel = 'MUNICIPIO';
-                    renderView(); 
+                    map.fitBounds(e.target.getBounds()); // Zoom no município
+                    renderContextLayer(); 
                     updateNavUI();
                 });
 
@@ -297,69 +349,46 @@
         }).addTo(map);
     }
 
-    // 3. Renderizar Pins (Nível 3)
-    function renderPins(uf, city) {
-        const localData = state.data.filter(row => {
-            const rUF = (row[state.colMap.uf] || "").trim().toUpperCase();
-            const rCity = (row[state.colMap.city] || "").trim().toUpperCase();
-            return rUF === uf && rCity === city;
-        });
-
-        localData.forEach(row => {
-            const lat = parseFloat(row[state.colMap.lat]);
-            const lon = parseFloat(row[state.colMap.lon]);
-            const nome = state.colMap.nome !== -1 ? row[state.colMap.nome] : "Escola";
-
-            const icon = L.divIcon({
-                className: 'custom-pin-icon',
-                html: pinSvg,
-                iconSize: [20, 26],
-                iconAnchor: [10, 26],
-                popupAnchor: [0, -26]
-            });
-
-            const marker = L.marker([lat, lon], { icon: icon });
-            marker.bindTooltip(`<b>${nome}</b>`, { direction: 'top', offset: [0, -25] });
-            marker.bindPopup(buildPopupContent(row));
-            pinsLayer.addLayer(marker);
-        });
-
-        if (localData.length > 0) {
-            const group = L.featureGroup(pinsLayer.getLayers());
-            map.fitBounds(group.getBounds(), { padding: [50, 50] });
+    function getColorLog(d, max) {
+        if (!d || d === 0) return '#f0f0f0';
+        if (!max || max === 0) return '#eee';
+        if (max < 10) {
+            const pct = d / max;
+            if (pct > 0.8) return PALETTE[4];
+            if (pct > 0.6) return PALETTE[3];
+            if (pct > 0.4) return PALETTE[2];
+            if (pct > 0.2) return PALETTE[1];
+            return PALETTE[0];
         }
-    }
-
-    // --- UTILITÁRIOS ---
-    function getColor(d, max) {
-        if (max === 0) return '#eee';
-        const pct = d / max;
-        if (pct > 0.8) return PALETTE[4];
-        if (pct > 0.6) return PALETTE[3];
-        if (pct > 0.4) return PALETTE[2];
-        if (pct > 0.2) return PALETTE[1];
+        const logVal = Math.log(d + 1);
+        const logMax = Math.log(max + 1);
+        const pct = logVal / logMax;
+        if (pct > 0.85) return PALETTE[4];
+        if (pct > 0.70) return PALETTE[3];
+        if (pct > 0.55) return PALETTE[2];
+        if (pct > 0.40) return PALETTE[1];
         return PALETTE[0];
     }
 
     function mapColumns(columns) {
         const map = { lat: -1, lon: -1, nome: -1, uf: -1, city: -1, alertas: -1 };
         columns.forEach((col, index) => {
-            const label = col.label.toUpperCase();
+            const label = normalizeText(col.label);
             if (label.includes("LATIT")) map.lat = index;
             else if (label.includes("LONGIT")) map.lon = index;
-            else if (label.includes("NOME") || label.includes("ENTIDADE")) map.nome = index;
+            else if (label.includes("NOME") || label.includes("ENTIDADE") || label.includes("ESCOLA")) map.nome = index;
             else if (label.includes("UF") || label.includes("ESTADO") || label.includes("SG_UF")) map.uf = index;
             else if (label.includes("MUNICIPIO") || label.includes("CIDADE")) map.city = index;
-            else if (label.includes("ALERTA") || label.includes("TOTAL")) map.alertas = index;
+            else if (label.includes("ALERTA") || label.includes("TOTAL") || label.includes("VALOR")) map.alertas = index;
         });
         return map;
     }
 
     function buildPopupContent(row) {
         let html = `<div class='popup-title'>${row[state.colMap.nome] || 'Detalhes'}</div>`;
-        html += `<table>`;
-        state.data.length > 0 && Object.keys(state.colMap).forEach(key => {
-             // Lógica simplificada
+        html += `<table class='popup-table'>`;
+        state.data.length > 0 && Object.keys(state.colMap).forEach(key => { 
+            // Opcional: Iterar colunas para mostrar tudo
         });
         html += `</table>`;
         return html;
@@ -367,23 +396,17 @@
 
     function createLegend() {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `
-            <strong>Nível de Alertas</strong>
-            <div class="legend-gradient"></div>
-            <div class="legend-labels"><span>Menor</span><span>Maior</span></div>
-        `;
+        div.innerHTML = `<strong>Nível de Alertas (Região)</strong><div class="legend-gradient"></div><div class="legend-labels"><span>Menor</span><span>Maior</span></div>`;
         document.getElementById('map').appendChild(div);
     }
     
-    // --- NAV BUTTONS & UI ---
+    // --- NAVEGAÇÃO UI ---
     window.drillUp = function() {
         if (state.viewLevel === 'MUNICIPIO') {
             state.viewLevel = 'UF';
             state.selectedCity = null;
-            renderView();
-            // Mantém zoom no estado atual (aproximado)
+            renderContextLayer();
         } else {
-            // Se estiver em UF ou BRASIL, volta pro Brasil
             resetToBrasil();
         }
         updateNavUI();
@@ -393,7 +416,7 @@
         state.viewLevel = 'BRASIL';
         state.selectedUF = null;
         state.selectedCity = null;
-        renderView();
+        renderContextLayer();
         map.setView([-14.2, -51.9], 4);
         updateNavUI();
     };
@@ -401,12 +424,12 @@
     window.zoomToPin = function() {
         if (state.data.length === 1) {
             const row = state.data[0];
-            const lat = parseFloat(row[state.colMap.lat]);
-            const lon = parseFloat(row[state.colMap.lon]);
+            const lat = parseSasNumber(row[state.colMap.lat]);
+            const lon = parseSasNumber(row[state.colMap.lon]);
             state.viewLevel = 'MUNICIPIO'; 
-            state.selectedUF = row[state.colMap.uf];
-            state.selectedCity = row[state.colMap.city];
-            renderView(); 
+            state.selectedUF = normalizeText(row[state.colMap.uf]);
+            state.selectedCity = normalizeText(row[state.colMap.city]);
+            renderContextLayer();
             map.setView([lat, lon], 16);
             updateNavUI();
         }
