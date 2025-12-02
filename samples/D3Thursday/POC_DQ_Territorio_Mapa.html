@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapa de Escolas - SAS DDC</title>
 
-    <!-- 1. Bibliotecas Externas (Leaflet + MarkerCluster) -->
+    <!-- 1. Bibliotecas Externas (Apenas Leaflet, sem MarkerCluster) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     
     <style>
         /* 2. Estilização Responsiva */
@@ -19,31 +17,47 @@
             height: 100%;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f4f4;
         }
 
         #map {
             width: 100%;
             height: 100%;
             z-index: 1;
+            background: #fff; /* Fundo branco para destacar as cores */
         }
 
         /* Estilo da Legenda */
         .legend {
-            background: white;
-            padding: 10px;
-            line-height: 18px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            line-height: 20px;
+            color: #333;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            font-size: 11px;
+            min-width: 120px;
+        }
+        .legend h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            font-weight: bold;
             color: #555;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2);
-            border-radius: 5px;
-            font-size: 12px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
         }
         .legend i {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             float: left;
             margin-right: 8px;
-            opacity: 0.7;
-            border-radius: 50%;
+            opacity: 1;
+            border-radius: 3px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
         }
 
         /* Loading Overlay */
@@ -52,44 +66,56 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(255,255,255,0.9);
-            padding: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 20px 40px;
             border-radius: 8px;
             z-index: 9999;
             display: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            font-weight: 600;
+            color: #555;
         }
 
         /* Ajuste Popup */
         .leaflet-popup-content-wrapper {
-            border-radius: 4px;
+            border-radius: 6px;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.2);
         }
         .popup-title {
             font-weight: bold;
             font-size: 1.1em;
-            margin-bottom: 5px;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 3px;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
             color: #333;
         }
         .popup-table td {
-            padding: 2px 5px;
+            padding: 3px 5px;
             font-size: 0.9em;
+            vertical-align: top;
         }
         .popup-label {
             font-weight: 600;
-            color: #666;
+            color: #777;
+            text-align: right;
+            padding-right: 10px !important;
         }
+        
+        /* Botão Reset Customizado */
         .leaflet-control-custom {
             display: flex;
             align-items: center;
             justify-content: center;
+            border: 2px solid rgba(0,0,0,0.2);
+            background-clip: padding-box;
+        }
+        .leaflet-control-custom:hover {
+            background-color: #f4f4f4;
         }
     </style>
 
     <!-- Scripts do Leaflet -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     
     <!-- Scripts Utilitários SAS -->
     <script src="../../util/messagingUtil.js" onerror="window.sasMessagingMissing=true"></script>
@@ -98,7 +124,7 @@
 </head>
 <body>
 
-    <div id="loader">Carregando dados...</div>
+    <div id="loader">Carregando mapa...</div>
     <div id="map"></div>
 
 <script>
@@ -106,20 +132,21 @@
      * CONFIGURAÇÃO E VARIÁVEIS GLOBAIS
      */
     let map;
-    let markersCluster;
+    let schoolsLayer; // LayerGroup para os pontos
     let legend;
     
-    // Cores para Dependência Administrativa / Rede
-    const colorScale = {
-        'Municipal': '#1f77b4', // Azul
-        'Estadual': '#ff7f0e',  // Laranja
-        'Federal': '#2ca02c',   // Verde
-        'Privada': '#d62728',   // Vermelho
-        'Outros': '#9467bd'     // Roxo
-    };
+    // Paleta de Cores (Usuário) - Mapeada do Menor (Index 0) para o Maior (Index 4)
+    // Ordem solicitada: Menor -> 0B4C01 ... Maior -> B0B7C2
+    const PALETTE = [
+        '#0B4C01', // 0: Menor (Dark Green)
+        '#97C03F', // 1: (Lime Green)
+        '#54B6A4', // 2: (Teal)
+        '#039137', // 3: (Green - Atenção: Usuário colocou este perto do topo)
+        '#B0B7C2'  // 4: Maior (Greyish)
+    ];
 
     // ---------------------------------------------------------
-    // 3. DADOS DE EXEMPLO (SEUS DADOS DO CSV)
+    // DADOS DE EXEMPLO ATUALIZADOS
     // ---------------------------------------------------------
     const SAMPLE_DATA = {
         columns: [
@@ -127,23 +154,17 @@
             { label: "LATITUDE", type: "number" },    // 1
             { label: "LONGITUDE", type: "number" },   // 2
             { label: "SG_UF", type: "string" },       // 3
-            { label: "NO_MUNICIPIO", type: "string" },// 4
-            { label: "CO_ENTIDADE", type: "string" }  // 5
+            { label: "Total de Alertas", type: "number" } // 4 (NOVA COLUNA)
         ],
         data: [
-            // Dados extraídos do seu CSV para teste visual
-            ["EMEF PROF HERBERT DE ALENCAR", -8.764006266, -63.8782668, "RO", "Porto Velho", "11000201"],
-            ["EEEFM DR OSWALDO PIANNA", -8.7275472, -63.9090556, "RO", "Porto Velho", "11000937"],
-            ["EEEFM MARIANA", -8.7713569, -63.8242688, "RO", "Porto Velho", "11001550"],
-            ["ASSOCIACAO PESTALOZZI", -8.7381852, -63.8923458, "RO", "Porto Velho", "11003294"],
-            ["EMEF CASTRO ALVES", -8.234529581, -63.25452274, "RO", "Porto Velho", "11003367"],
-            ["C EDUCACIONAL DOCE INFANCIA SUL", -16.0319782, -48.0659455, "DF", "Brasília", "53015096"],
-            ["COL MILITAR TIRADENTES", -15.83021174, -47.94206093, "DF", "Brasília", "53015495"],
-            ["CR PASTOR FRANCISCO MIRANDA", -15.8760512, -48.0678301, "DF", "Brasília", "53015622"],
-            ["ESC KK", -15.8442903, -47.8961525, "DF", "Brasília", "53015886"],
-            ["COL MARECHAL DEODORO DA FONSECA CMDF", -16.01103311, -47.98763232, "DF", "Brasília", "53016106"],
-            ["CEPI PAINEIRA", -15.8945082, -48.1097112, "DF", "Brasília", "53016238"],
-            ["ESC COLINHO DA VOVO", -15.81419, -48.12559414, "DF", "Brasília", "53016890"]
+            // DF (Simulando ALTA soma de alertas -> Deve ficar Cinza)
+            ["ESCOLA DF 1", -15.8302, -47.9420, "DF", 50],
+            ["ESCOLA DF 2", -15.8760, -48.0678, "DF", 40],
+            ["ESCOLA DF 3", -15.8442, -47.8961, "DF", 60],
+            
+            // RO (Simulando BAIXA soma de alertas -> Deve ficar Verde Escuro)
+            ["ESCOLA RO 1", -8.7640, -63.8782, "RO", 2],
+            ["ESCOLA RO 2", -8.7275, -63.9090, "RO", 5]
         ]
     };
 
@@ -151,38 +172,40 @@
      * INICIALIZAÇÃO DO MAPA
      */
     function initMap() {
-        // Centraliza no Brasil inicialmente
-        map = L.map('map').setView([-14.2350, -51.9253], 4);
+        // Centraliza no Brasil
+        map = L.map('map', {
+            zoomControl: false, 
+            preferCanvas: true
+        }).setView([-14.2350, -51.9253], 4);
 
-        // Adiciona Tile Layer (OpenStreetMap)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        L.control.zoom({
+            position: 'topright'
+        }).addTo(map);
+
+        // Tile Layer Limpo
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
             maxZoom: 19
         }).addTo(map);
 
-        // Inicializa o grupo de cluster
-        markersCluster = L.markerClusterGroup({
-            showCoverageOnHover: false,
-            maxClusterRadius: 50
-        });
-        
-        map.addLayer(markersCluster);
+        schoolsLayer = L.layerGroup().addTo(map);
 
         // Botão Reset
         const resetControl = L.Control.extend({
-            options: { position: 'topleft' },
+            options: { position: 'topright' },
             onAdd: function(map) {
                 const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
                 container.style.backgroundColor = 'white';
                 container.style.width = '30px';
                 container.style.height = '30px';
                 container.style.cursor = 'pointer';
-                container.title = "Resetar Zoom";
-                container.innerHTML = '<span style="font-size:18px;">&#8962;</span>';
+                container.title = "Ver Tudo";
+                container.innerHTML = '<span style="font-size:16px; font-weight:bold; color:#555;">&#9716;</span>'; 
                 
                 container.onclick = function(){
-                    if (markersCluster.getBounds().isValid()) {
-                        map.fitBounds(markersCluster.getBounds(), { padding: [50, 50] });
+                    if (schoolsLayer.getLayers().length > 0) {
+                        const bounds = L.featureGroup(schoolsLayer.getLayers()).getBounds();
+                        if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50] });
                     } else {
                         map.setView([-14.2350, -51.9253], 4);
                     }
@@ -194,133 +217,132 @@
     }
 
     /**
-     * LÓGICA DE PROCESSAMENTO DE DADOS (SAS -> JS)
+     * LÓGICA DE PROCESSAMENTO DE DADOS
      */
     function onDataReceived(message) {
-        if (!message || !message.data || message.data.length === 0) {
-            console.warn("Nenhum dado recebido.");
-            return;
-        }
+        if (!message || !message.data || message.data.length === 0) return;
 
         document.getElementById('loader').style.display = 'block';
 
-        // 1. Mapeamento Inteligente de Colunas
         const colMap = mapColumns(message.columns);
-
+        
+        // Se não tiver Lat/Lon, aborta
         if (colMap.lat === -1 || colMap.lon === -1) {
-            // Tenta fallback se não achou pelos nomes padrões
-            console.warn("Colunas Lat/Lon não identificadas pelo nome padrão. Tentando índices 1 e 2.");
-            // Lógica de emergência para datasets simples
-            if(message.columns.length >= 3) {
-                 colMap.lat = 1;
-                 colMap.lon = 2;
-            } else {
-                alert("Erro: Colunas de Latitude e Longitude não encontradas. Verifique os dados.");
-                document.getElementById('loader').style.display = 'none';
-                return;
+            // Tentativa de fallback
+            if(message.columns.length >= 3) { colMap.lat = 1; colMap.lon = 2; }
+            else { 
+                document.getElementById('loader').innerText = "Erro: Colunas Lat/Lon não encontradas.";
+                return; 
             }
         }
 
-        // 2. Limpar mapa
-        markersCluster.clearLayers();
+        schoolsLayer.clearLayers();
         if (legend) map.removeControl(legend);
 
-        const validMarkers = [];
-        const categoriesFound = new Set();
+        // 1. AGREGAÇÃO POR UF (SOMA de Alertas)
+        const ufStats = {};
+        const validRows = [];
+        const hasAlertsCol = colMap.alertas !== -1;
 
-        // 3. Processar linhas
         message.data.forEach(row => {
             const lat = parseFloat(row[colMap.lat]);
             const lon = parseFloat(row[colMap.lon]);
+            if (isNaN(lat) || isNaN(lon)) return;
 
-            // Validação
-            if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) return;
-
-            const nome = colMap.nome !== -1 ? row[colMap.nome] : "Escola";
-            let dependencia = "Outros";
-
-            // Se tiver coluna de dependência, usa. Senão, tenta adivinhar pelo nome (apenas visual)
-            if (colMap.dep !== -1) {
-                dependencia = normalizeCategory(row[colMap.dep]);
+            const uf = colMap.uf !== -1 ? row[colMap.uf] : "OUTROS";
+            
+            // Inicializa contador
+            if (!ufStats[uf]) ufStats[uf] = 0;
+            
+            // Se tiver coluna de alertas, soma o valor. Se não, conta 1 (densidade)
+            if (hasAlertsCol) {
+                const val = parseFloat(row[colMap.alertas]);
+                ufStats[uf] += isNaN(val) ? 0 : val;
             } else {
-                // Heurística simples para colorir o mapa se não tiver coluna "Rede"
-                const nomeUpper = nome.toUpperCase();
-                if (nomeUpper.includes("EMEF") || nomeUpper.includes("MUN")) dependencia = "Municipal";
-                else if (nomeUpper.includes("EEEFM") || nomeUpper.includes("EST")) dependencia = "Estadual";
-                else if (nomeUpper.includes("FED") || nomeUpper.includes("INST")) dependencia = "Federal";
-                else if (nomeUpper.includes("COL") || nomeUpper.includes("PRIV")) dependencia = "Privada";
+                ufStats[uf]++;
             }
             
-            categoriesFound.add(dependencia);
-
-            // Cor
-            const color = colorScale[dependencia] || colorScale['Outros'];
-            const markerHtmlStyles = `
-                background-color: ${color};
-                width: 12px;
-                height: 12px;
-                display: block;
-                border-radius: 50%;
-                border: 1px solid #fff;
-                box-shadow: 1px 1px 2px rgba(0,0,0,0.4);
-            `;
-            
-            const customIcon = L.divIcon({
-                className: "custom-pin",
-                html: `<span style="${markerHtmlStyles}"></span>`,
-                iconSize: [14, 14],
-                iconAnchor: [7, 7]
-            });
-
-            // Marcador
-            const marker = L.marker([lat, lon], { icon: customIcon });
-            
-            // Conteúdo do Popup
-            marker.bindTooltip(`<b>${nome}</b>`);
-            marker.bindPopup(buildPopupContent(row, message.columns, nome, dependencia));
-
-            validMarkers.push(marker);
+            validRows.push({ row, lat, lon, uf });
         });
 
-        // 4. Adicionar e Zoom
-        markersCluster.addLayers(validMarkers);
+        // 2. CALCULA ESCALA DE CORES (Min/Max por UF)
+        let maxVal = 0;
+        let minVal = Infinity;
+        for (const uf in ufStats) {
+            if (ufStats[uf] > maxVal) maxVal = ufStats[uf];
+            if (ufStats[uf] < minVal) minVal = ufStats[uf];
+        }
+        if (minVal === Infinity) minVal = 0;
 
-        if (validMarkers.length > 0) {
-            map.fitBounds(markersCluster.getBounds(), { padding: [50, 50] });
+        // 3. PLOTA PONTOS
+        validRows.forEach(item => {
+            const totalUF = ufStats[item.uf]; // Total da UF inteira
+            const color = getColorByValue(totalUF, minVal, maxVal);
+            
+            const nome = colMap.nome !== -1 ? item.row[colMap.nome] : "Escola";
+            const valorAlerta = hasAlertsCol ? item.row[colMap.alertas] : 1;
+
+            const circle = L.circleMarker([item.lat, item.lon], {
+                radius: 5,           
+                fillColor: color,    
+                color: "#fff",       
+                weight: 0.5,           
+                opacity: 1,
+                fillOpacity: 0.9    
+            });
+
+            // Tooltip mostra Total da UF e Individual
+            let tooltipText = `<b>${nome}</b><br>${item.uf}`;
+            if (hasAlertsCol) {
+                tooltipText += `<br>Alertas desta escola: ${valorAlerta}`;
+                tooltipText += `<br>Total Alertas na UF: ${totalUF}`;
+            }
+
+            circle.bindTooltip(tooltipText);
+            circle.bindPopup(buildPopupContent(item.row, message.columns));
+
+            schoolsLayer.addLayer(circle);
+        });
+
+        if (validRows.length > 0) {
+            const bounds = L.featureGroup(schoolsLayer.getLayers()).getBounds();
+            if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50] });
         }
 
-        // 5. Legenda
-        createLegend(categoriesFound);
+        createLegend(minVal, maxVal, hasAlertsCol);
 
         document.getElementById('loader').style.display = 'none';
     }
 
+    function getColorByValue(value, min, max) {
+        if (min === max) return PALETTE[4]; 
+
+        const range = max - min;
+        const step = range / 5;
+        
+        if (value < min + step) return PALETTE[0];   
+        if (value < min + step * 2) return PALETTE[1];
+        if (value < min + step * 3) return PALETTE[2];
+        if (value < min + step * 4) return PALETTE[3];
+        return PALETTE[4];                           
+    }
+
     function mapColumns(columns) {
-        const map = { lat: -1, lon: -1, nome: -1, dep: -1, inep: -1 };
+        const map = { lat: -1, lon: -1, nome: -1, uf: -1, alertas: -1 };
         columns.forEach((col, index) => {
             const label = col.label.toUpperCase();
             if (label.includes("LATIT")) map.lat = index;
             else if (label.includes("LONGIT")) map.lon = index;
-            else if (label.includes("NOME") || label.includes("NO_ENTIDADE") || label.includes("ESCOLA")) map.nome = index;
-            else if (label.includes("DEPEND") || label.includes("REDE") || label.includes("ADM") || label.includes("TIPO")) map.dep = index;
-            else if (label.includes("INEP") || label.includes("CO_ENTIDADE")) map.inep = index;
+            else if (label.includes("NOME") || label.includes("ENTIDADE") || label.includes("ESCOLA")) map.nome = index;
+            else if (label.includes("UF") || label.includes("ESTADO")) map.uf = index;
+            // Mapeia coluna de Alertas
+            else if (label.includes("ALERTA") || label.includes("TOTAL") || label.includes("SCORE")) map.alertas = index;
         });
         return map;
     }
 
-    function normalizeCategory(val) {
-        if (!val) return "Outros";
-        const v = val.toString().toUpperCase();
-        if (v.includes("MUN")) return "Municipal";
-        if (v.includes("EST")) return "Estadual";
-        if (v.includes("FED")) return "Federal";
-        if (v.includes("PRI") || v.includes("PART")) return "Privada";
-        return "Outros";
-    }
-
-    function buildPopupContent(row, columns, nome, dep) {
-        let html = `<div class='popup-title'>${nome}</div>`;
-        html += `<div style='font-size:0.8em; color:#666; margin-bottom:5px'>${dep}</div>`;
+    function buildPopupContent(row, columns) {
+        let html = `<div style="max-height:200px; overflow-y:auto;">`;
         html += `<table class='popup-table'>`;
         columns.forEach((col, i) => {
             const val = row[i];
@@ -328,20 +350,34 @@
                 html += `<tr><td class='popup-label'>${col.label}:</td><td>${val}</td></tr>`;
             }
         });
-        html += `</table>`;
+        html += `</table></div>`;
         return html;
     }
 
-    function createLegend(categories) {
+    function createLegend(min, max, hasAlerts) {
         legend = L.control({position: 'bottomright'});
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info legend');
-            let labels = ['<strong>Legenda</strong><br>'];
-            categories.forEach(cat => {
-                const color = colorScale[cat] || colorScale['Outros'];
-                labels.push(`<i style="background:${color}"></i> ${cat}`);
+            
+            const titulo = hasAlerts ? "Total de Alertas (por UF)" : "Densidade de Escolas (por UF)";
+            div.innerHTML = `<h4>${titulo}</h4>`;
+            
+            const labels = [
+                { color: PALETTE[4], text: "Muito Alto (Crítico)" },
+                { color: PALETTE[3], text: "Alto" },
+                { color: PALETTE[2], text: "Médio" },
+                { color: PALETTE[1], text: "Baixo" },
+                { color: PALETTE[0], text: "Muito Baixo" }
+            ];
+
+            labels.forEach(item => {
+                div.innerHTML += `
+                    <div class="legend-item">
+                        <i style="background:${item.color}"></i> 
+                        <span>${item.text}</span>
+                    </div>`;
             });
-            div.innerHTML = labels.join('<br>');
+
             return div;
         };
         legend.addTo(map);
@@ -359,15 +395,13 @@
         }
     }
 
-    // --- INÍCIO ---
+    // --- BOOTSTRAP ---
     initMap();
 
-    // Verifica modo offline/teste e carrega SAMPLE_DATA
     if (window.sasMessagingMissing || window.sasContentMissing || !window.messagingUtil) {
         setupSasHandlers();
-        // Se estiver rodando localmente ou no preview, carrega dados de teste imediatamente
-        if (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || true) {
-            console.log("Carregando dados de exemplo (CSV embutido).");
+        // Fallback
+        if (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             setTimeout(() => onDataReceived(SAMPLE_DATA), 500);
         }
     } else {
