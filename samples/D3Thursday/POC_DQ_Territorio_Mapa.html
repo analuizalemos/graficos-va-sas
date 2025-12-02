@@ -19,6 +19,26 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: none; font-weight: bold; color: #333;
         }
 
+        /* Aviso de Amostragem (Data Volume Warning) */
+        #status-bar {
+            position: absolute;
+            top: 10px;
+            left: 50px; /* Espaço para o controle de zoom se estiver na esquerda ou ajustar */
+            right: 50px;
+            margin: auto;
+            width: fit-content;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 16px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 12px;
+            color: #555;
+            display: none; /* Só aparece se houver sampling */
+            pointer-events: none;
+            border: 1px solid #ddd;
+        }
+
         /* Estilo do Popup */
         .leaflet-popup-content-wrapper { border-radius: 6px; padding: 0; }
         .leaflet-popup-content { margin: 10px 14px; line-height: 1.5; }
@@ -38,16 +58,15 @@
             background: transparent;
             border: none;
         }
-        /* Sombra leve para o pin se destacar no mapa colorido */
         .pin-svg {
-            filter: drop-shadow(0px 3px 2px rgba(0,0,0,0.4));
+            filter: drop-shadow(0px 2px 1px rgba(0,0,0,0.3)); /* Sombra ajustada para ícone menor */
         }
     </style>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
-    <!-- Esri Leaflet (Necessário para carregar o contorno do Brasil/IBGE) -->
+    <!-- Esri Leaflet (Para contorno do Brasil) -->
     <script src="https://unpkg.com/esri-leaflet@3.0.10/dist/esri-leaflet.js"></script>
     
     <!-- Scripts SAS -->
@@ -57,23 +76,29 @@
 </head>
 <body>
 
-    <div id="loader">Carregando locais...</div>
+    <div id="loader">Processando dados...</div>
+    <div id="status-bar"></div>
     <div id="map"></div>
 
 <script>
+    // --- CONFIGURAÇÕES ---
+    // Limite máximo de pontos para não travar o navegador. 
+    // 5000 é um bom equilíbrio entre performance e densidade visual.
+    const MAX_DISPLAY_POINTS = 5000; 
+
     // --- VARIÁVEIS GLOBAIS ---
     let map;
     let schoolsLayer; 
     
-    // Ícone SVG Pin (Vermelho)
+    // Ícone SVG Pin (Vermelho) - REDUZIDO
+    // Width 15, Height 20
     const pinSvg = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" class="pin-svg" width="30" height="40">
-            <!-- FontAwesome Location Dot Icon path -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" class="pin-svg" width="15" height="20">
             <path fill="#d9534f" stroke="#7a1f1c" stroke-width="10" d="M384 192c0 87.4-117 243-168.3 307.2c-12.3 15.3-35.1 15.3-47.4 0C117 435 0 279.4 0 192C0 86 86 0 192 0s192 86 192 192zM192 272c44.2 0 80-35.8 80-80s-35.8-80-80-80s-80 35.8-80 80s35.8 80 80 80z"/>
         </svg>
     `;
 
-    // Dados de exemplo (Fallback)
+    // Dados de exemplo
     const SAMPLE_DATA = {
         columns: [
             { label: "NO_ENTIDADE", type: "string" },
@@ -89,109 +114,119 @@
     };
 
     function initMap() {
-        // Inicializa o mapa centralizado no Brasil
         map = L.map('map', { zoomControl: false }).setView([-14.2, -51.9], 4);
         
-        // Controle de Zoom no topo direito
         L.control.zoom({ position: 'topright' }).addTo(map);
 
-        // MAPA BASE: OpenStreetMap Standard (Colorido e Vibrante)
+        // OpenStreetMap (Colorido)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            attribution: '&copy; OpenStreetMap',
             maxZoom: 19
         }).addTo(map);
 
-        // -----------------------------------------------------------
-        // CAMADA DE DESTAQUE DO BRASIL (IBGE) - APENAS CONTORNO
-        // -----------------------------------------------------------
+        // Contorno do Brasil (IBGE)
         const ibgeUrl = 'https://services7.arcgis.com/wyfPsHBH5pLzcvJv/arcgis/rest/services/Limites_geogr%C3%A1ficos_IBGE_2022/FeatureServer/0';
-        
         L.esri.featureLayer({
             url: ibgeUrl,
             style: {
-                color: '#4a5a6a', // Cor do contorno (Cinza Azulado Escuro)
-                weight: 1.5,      // Espessura da linha
-                fill: false,      // Sem preenchimento (transparente)
-                opacity: 0.8      // Opacidade da linha
+                color: '#4a5a6a',
+                weight: 1.5,
+                fill: false,
+                opacity: 0.8
             },
-            // Desativa interação com o contorno para não atrapalhar o clique nos pins
             interactive: false 
         }).addTo(map);
 
-        // Grupo de camadas para os pins (Adicionado DEPOIS para ficar por cima do contorno)
         schoolsLayer = L.layerGroup().addTo(map);
     }
 
     function onDataReceived(message) {
         if (!message || !message.data) return;
         
-        document.getElementById('loader').style.display = 'block';
+        const loader = document.getElementById('loader');
+        const statusBar = document.getElementById('status-bar');
+        loader.style.display = 'block';
 
-        const colMap = mapColumns(message.columns);
-        
-        // Verificação básica de colunas
-        if (colMap.lat === -1 || colMap.lon === -1) {
-            // Tenta fallback simples se as colunas não tiverem nomes padrão
-            if(message.columns.length >= 3) { 
-                colMap.lat = 1; 
-                colMap.lon = 2; 
-            } else {
-                console.error("Colunas Latitude/Longitude não encontradas.");
-                document.getElementById('loader').innerText = "Erro: Lat/Lon não identificadas.";
-                return;
+        // Pequeno delay para permitir que o navegador renderize o loader antes de travar no processamento
+        setTimeout(() => {
+            const colMap = mapColumns(message.columns);
+            
+            if (colMap.lat === -1 || colMap.lon === -1) {
+                // Fallback de emergência
+                if(message.columns.length >= 3) { 
+                    colMap.lat = 1; colMap.lon = 2; 
+                } else {
+                    loader.innerText = "Erro: Lat/Lon não identificadas.";
+                    return;
+                }
             }
-        }
 
-        schoolsLayer.clearLayers();
-        const validMarkers = [];
-
-        message.data.forEach(row => {
-            const lat = parseFloat(row[colMap.lat]);
-            const lon = parseFloat(row[colMap.lon]);
+            schoolsLayer.clearLayers();
             
-            // Ignora coordenadas inválidas
-            if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) return;
-
-            const nome = colMap.nome !== -1 ? row[colMap.nome] : "Local";
-            
-            // Criação do Ícone Customizado (Pin)
-            const icon = L.divIcon({
-                className: 'custom-pin-icon',
-                html: pinSvg,
-                iconSize: [30, 40], // Largura, Altura
-                iconAnchor: [15, 40], // Ponto que toca o mapa (Metade da largura, Altura total)
-                popupAnchor: [0, -35] // Onde o popup abre em relação ao anchor
+            // 1. Filtragem Inicial: Apenas linhas válidas
+            const allValidRows = [];
+            message.data.forEach(row => {
+                // Checagem rápida de validade
+                const lat = row[colMap.lat];
+                const lon = row[colMap.lon];
+                if (lat && lon && !isNaN(lat) && lat !== 0) {
+                    allValidRows.push(row);
+                }
             });
 
-            const marker = L.marker([lat, lon], { icon: icon });
+            // 2. Lógica de Amostragem (Sampling)
+            let rowsToRender = [];
+            const total = allValidRows.length;
+            
+            if (total > MAX_DISPLAY_POINTS) {
+                // Calcula o "salto" para pegar uma amostra uniforme em todo o arquivo
+                // Isso garante que pegamos escolas de TODOS os estados se o arquivo estiver ordenado
+                const step = Math.ceil(total / MAX_DISPLAY_POINTS);
+                
+                rowsToRender = allValidRows.filter((_, index) => index % step === 0);
+                
+                // Atualiza barra de status
+                statusBar.style.display = 'block';
+                statusBar.innerHTML = `⚠️ <b>Alta densidade:</b> Exibindo amostra de <b>${rowsToRender.length}</b> escolas (Total: ${total.toLocaleString()}).`;
+            } else {
+                rowsToRender = allValidRows;
+                statusBar.style.display = 'none';
+            }
 
-            // Tooltip simples (nome ao passar o mouse)
-            marker.bindTooltip(`<b>${nome}</b>`, { 
-                direction: 'top',
-                offset: [0, -35]
+            // 3. Renderização
+            rowsToRender.forEach(row => {
+                const lat = parseFloat(row[colMap.lat]);
+                const lon = parseFloat(row[colMap.lon]);
+                const nome = colMap.nome !== -1 ? row[colMap.nome] : "Escola";
+                
+                const icon = L.divIcon({
+                    className: 'custom-pin-icon',
+                    html: pinSvg,
+                    iconSize: [15, 20],      // <--- DIMINUÍDO (Metade do original)
+                    iconAnchor: [7.5, 20],   // Centralizado horizontalmente, base no fundo
+                    popupAnchor: [0, -20]    // Popup logo acima do pin
+                });
+
+                const marker = L.marker([lat, lon], { icon: icon });
+
+                // Tooltip offset ajustado
+                marker.bindTooltip(`<b>${nome}</b>`, { direction: 'top', offset: [0, -20] });
+                marker.bindPopup(buildPopupContent(row, message.columns, nome));
+
+                schoolsLayer.addLayer(marker);
             });
 
-            // Popup detalhado (tabela ao clicar)
-            marker.bindPopup(buildPopupContent(row, message.columns, nome));
+            // Ajusta zoom
+            if (rowsToRender.length > 0) {
+                const group = L.featureGroup(schoolsLayer.getLayers());
+                map.fitBounds(group.getBounds(), { padding: [50, 50] });
+            }
 
-            schoolsLayer.addLayer(marker);
-            validMarkers.push(marker);
-        });
+            loader.style.display = 'none';
 
-        // Ajustar zoom para mostrar todos os pins
-        if (validMarkers.length > 0) {
-            // Cria um grupo temporário apenas para calcular o bounds
-            const group = L.featureGroup(validMarkers);
-            map.fitBounds(group.getBounds(), { padding: [50, 50] });
-        } else {
-            // Se não houver pontos válidos após filtro, volta pro Brasil
-            map.setView([-14.2, -51.9], 4);
-        }
-
-        document.getElementById('loader').style.display = 'none';
+        }, 100); // Fim do timeout
     }
 
-    // Identifica colunas pelo nome
     function mapColumns(columns) {
         const map = { lat: -1, lon: -1, nome: -1 };
         columns.forEach((col, index) => {
@@ -203,7 +238,6 @@
         return map;
     }
 
-    // Constrói o HTML interno do popup
     function buildPopupContent(row, columns, title) {
         let html = `<div class='popup-title'>${title}</div>`;
         html += `<table class='popup-table'>`;
@@ -217,7 +251,6 @@
         return html;
     }
 
-    // --- SETUP SAS MESSAGE HANDLER ---
     function setupSasHandlers() {
         if (window.addEventListener) window.addEventListener("message", onMessage, false);
         else window.attachEvent("onmessage", onMessage);
@@ -229,15 +262,12 @@
         }
     }
 
-    // Inicialização
     initMap();
 
-    // Detecção de ambiente (SAS vs Local)
     if (window.sasMessagingMissing || window.sasContentMissing || !window.messagingUtil) {
         setupSasHandlers();
-        // Se estiver local, carrega exemplo
         if (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || true) {
-             setTimeout(() => onDataReceived(SAMPLE_DATA), 1000); // 1s delay para dar tempo do mapa carregar
+             setTimeout(() => onDataReceived(SAMPLE_DATA), 1000); 
         }
     } else {
         messagingUtil.setOnDataReceivedCallback(onDataReceived);
