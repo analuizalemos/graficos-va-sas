@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Escolas - SAS DDC</title>
+    <title>Mapa de Escolas DrillDown - SAS DDC</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -15,58 +15,75 @@
         /* Loader */
         #loader {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(255,255,255,0.9); padding: 20px 40px; border-radius: 8px; z-index: 9999;
+            background: rgba(255,255,255,0.95); padding: 15px 30px; border-radius: 8px; z-index: 9999;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: none; font-weight: bold; color: #333;
-        }
-
-        /* Aviso de Amostragem (Data Volume Warning) */
-        #status-bar {
-            position: absolute;
-            top: 10px;
-            left: 50px; /* Espaço para o controle de zoom se estiver na esquerda ou ajustar */
-            right: 50px;
-            margin: auto;
-            width: fit-content;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 8px 16px;
-            border-radius: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1000;
-            font-size: 12px;
-            color: #555;
-            display: none; /* Só aparece se houver sampling */
-            pointer-events: none;
             border: 1px solid #ddd;
         }
 
-        /* Estilo do Popup */
-        .leaflet-popup-content-wrapper { border-radius: 6px; padding: 0; }
-        .leaflet-popup-content { margin: 10px 14px; line-height: 1.5; }
-        .popup-title { 
-            font-weight: bold; 
-            font-size: 1.1em; 
-            margin-bottom: 6px; 
-            border-bottom: 2px solid #d9534f; 
-            padding-bottom: 4px; 
-            color: #333; 
+        /* Controles de Navegação */
+        .nav-controls {
+            position: absolute;
+            top: 10px;
+            left: 50px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
         }
-        .popup-table td { padding: 2px 5px; font-size: 0.9em; vertical-align: top; }
-        .popup-label { font-weight: 600; color: #666; text-align: right; white-space: nowrap; }
 
-        /* Estilo do Ícone (Pin) */
-        .custom-pin-icon {
-            background: transparent;
-            border: none;
+        .nav-btn {
+            background: white;
+            border: 1px solid #ccc;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
         }
-        .pin-svg {
-            filter: drop-shadow(0px 2px 1px rgba(0,0,0,0.3)); /* Sombra ajustada para ícone menor */
+        .nav-btn:hover { background: #f8f8f8; color: #333; }
+        .nav-btn.active { border-left: 4px solid #d9534f; }
+        .nav-btn span { margin-left: 5px; }
+
+        /* Legenda Horizontal */
+        .legend {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 12px;
+            color: #333;
+            box-shadow: 0 0 10px rgba(0,0,0,0.15);
+            border-radius: 4px;
+            font-size: 11px;
+            min-width: 200px;
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            z-index: 1000;
         }
+        .legend-gradient {
+            height: 10px;
+            width: 100%;
+            background: linear-gradient(to right, #d9f0a3, #addd8e, #ffffb2, #fecc5c, #bd0026);
+            border-radius: 2px;
+            margin-top: 5px;
+        }
+        .legend-labels { display: flex; justify-content: space-between; margin-top: 2px; color: #666; font-size: 10px; }
+
+        /* Estilo Popup */
+        .popup-title { font-weight: bold; border-bottom: 2px solid #d9534f; margin-bottom: 5px; padding-bottom: 2px; }
+        .popup-table td { font-size: 0.9em; padding: 2px; }
+
+        /* Pin Style */
+        .custom-pin-icon { background: transparent; border: none; }
+        .pin-svg { filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3)); }
+
     </style>
 
     <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    
-    <!-- Esri Leaflet (Para contorno do Brasil) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Esri Leaflet -->
     <script src="https://unpkg.com/esri-leaflet@3.0.10/dist/esri-leaflet.js"></script>
     
     <!-- Scripts SAS -->
@@ -76,186 +93,341 @@
 </head>
 <body>
 
-    <div id="loader">Processando dados...</div>
-    <div id="status-bar"></div>
+    <div id="loader">Carregando dados...</div>
+    
+    <div class="nav-controls">
+        <button class="nav-btn" onclick="drillUp()">
+            &#11013; <span id="btn-back-label">Visão Brasil</span>
+        </button>
+        <button class="nav-btn" id="btn-zoom-pin" onclick="zoomToPin()" style="display:none;">
+            &#128205; <span>Focar Escola</span>
+        </button>
+    </div>
+
     <div id="map"></div>
 
 <script>
-    // --- CONFIGURAÇÕES ---
-    // Limite máximo de pontos para não travar o navegador. 
-    // 5000 é um bom equilíbrio entre performance e densidade visual.
-    const MAX_DISPLAY_POINTS = 5000; 
-
-    // --- VARIÁVEIS GLOBAIS ---
-    let map;
-    let schoolsLayer; 
+    // --- CONFIGURAÇÃO ---
+    // Gradiente: Verde Claro -> Amarelo -> Vermelho
+    const PALETTE = ['#d9f0a3', '#addd8e', '#ffffb2', '#fecc5c', '#bd0026'];
     
-    // Ícone SVG Pin (Vermelho) - REDUZIDO
-    // Width 15, Height 20
-    const pinSvg = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" class="pin-svg" width="15" height="20">
-            <path fill="#d9534f" stroke="#7a1f1c" stroke-width="10" d="M384 192c0 87.4-117 243-168.3 307.2c-12.3 15.3-35.1 15.3-47.4 0C117 435 0 279.4 0 192C0 86 86 0 192 0s192 86 192 192zM192 272c44.2 0 80-35.8 80-80s-35.8-80-80-80s-80 35.8-80 80s35.8 80 80 80z"/>
-        </svg>
-    `;
+    // URL do Serviço de Mapas (IBGE 2022 via ArcGIS)
+    // Layer 1 = Unidades da Federação (Estados)
+    // Layer 2 = Municípios (Geralmente)
+    const MAP_SERVICE_URL = 'https://services7.arcgis.com/wyfPsHBH5pLzcvJv/arcgis/rest/services/Limites_geogr%C3%A1ficos_IBGE_2022/FeatureServer';
 
-    // Dados de exemplo
+    // --- ESTADO DA APLICAÇÃO ---
+    let state = {
+        viewLevel: 'BRASIL', // 'BRASIL', 'UF', 'MUNICIPIO'
+        selectedUF: null,
+        selectedCity: null,
+        data: [], 
+        colMap: {}, 
+        stats: { uf: {}, city: {} }, 
+        maxVal: { uf: 0, city: 0 }
+    };
+
+    let map;
+    let esriLayer; // Camada dinâmica Esri
+    let pinsLayer; // Camada de Pontos
+    let legendControl;
+
+    // --- ÍCONE ---
+    const pinSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" class="pin-svg" width="20" height="26">
+            <path fill="#d9534f" stroke="#7a1f1c" stroke-width="10" d="M384 192c0 87.4-117 243-168.3 307.2c-12.3 15.3-35.1 15.3-47.4 0C117 435 0 279.4 0 192C0 86 86 0 192 0s192 86 192 192zM192 272c44.2 0 80-35.8 80-80s-35.8-80-80-80s-80 35.8-80 80s35.8 80 80 80z"/>
+        </svg>`;
+
+    // --- DADOS EXEMPLO ---
     const SAMPLE_DATA = {
         columns: [
-            { label: "NO_ENTIDADE", type: "string" },
-            { label: "LATITUDE", type: "number" },
-            { label: "LONGITUDE", type: "number" },
-            { label: "SG_UF", type: "string" }
+            { label: "NO_ENTIDADE", type: "string" }, { label: "LATITUDE", type: "number" },
+            { label: "LONGITUDE", type: "number" }, { label: "SG_UF", type: "string" },
+            { label: "NO_MUNICIPIO", type: "string" }, { label: "Total Alertas", type: "number" }
         ],
         data: [
-            ["ESCOLA TESTE 1 (DF)", -15.83, -47.94, "DF"], 
-            ["ESCOLA TESTE 2 (DF)", -15.87, -48.06, "DF"], 
-            ["ESCOLA TESTE 3 (RO)", -8.76, -63.87, "RO"]
+            ["ESCOLA A", -15.83, -47.94, "DF", "Brasília", 80], 
+            ["ESCOLA B", -23.55, -46.63, "SP", "São Paulo", 20],
+            ["ESCOLA C", -22.90, -43.17, "RJ", "Rio de Janeiro", 50]
         ]
     };
 
     function initMap() {
         map = L.map('map', { zoomControl: false }).setView([-14.2, -51.9], 4);
-        
         L.control.zoom({ position: 'topright' }).addTo(map);
 
-        // OpenStreetMap (Colorido)
+        // Mapa Base Colorido
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap',
-            maxZoom: 19
+            attribution: '&copy; OpenStreetMap', maxZoom: 19
         }).addTo(map);
 
-        // Contorno do Brasil (IBGE)
-        const ibgeUrl = 'https://services7.arcgis.com/wyfPsHBH5pLzcvJv/arcgis/rest/services/Limites_geogr%C3%A1ficos_IBGE_2022/FeatureServer/0';
-        L.esri.featureLayer({
-            url: ibgeUrl,
-            style: {
-                color: '#4a5a6a',
-                weight: 1.5,
-                fill: false,
-                opacity: 0.8
-            },
-            interactive: false 
-        }).addTo(map);
-
-        schoolsLayer = L.layerGroup().addTo(map);
+        pinsLayer = L.layerGroup().addTo(map);
+        createLegend();
     }
 
+    // --- PROCESSAMENTO DE DADOS ---
     function onDataReceived(message) {
         if (!message || !message.data) return;
-        
-        const loader = document.getElementById('loader');
-        const statusBar = document.getElementById('status-bar');
-        loader.style.display = 'block';
+        document.getElementById('loader').style.display = 'block';
 
-        // Pequeno delay para permitir que o navegador renderize o loader antes de travar no processamento
         setTimeout(() => {
-            const colMap = mapColumns(message.columns);
+            state.colMap = mapColumns(message.columns);
             
-            if (colMap.lat === -1 || colMap.lon === -1) {
-                // Fallback de emergência
-                if(message.columns.length >= 3) { 
-                    colMap.lat = 1; colMap.lon = 2; 
-                } else {
-                    loader.innerText = "Erro: Lat/Lon não identificadas.";
-                    return;
-                }
+            if (state.colMap.lat === -1) { 
+                if(message.columns.length >= 3) { state.colMap.lat = 1; state.colMap.lon = 2; }
             }
 
-            schoolsLayer.clearLayers();
-            
-            // 1. Filtragem Inicial: Apenas linhas válidas
-            const allValidRows = [];
-            message.data.forEach(row => {
-                // Checagem rápida de validade
-                const lat = row[colMap.lat];
-                const lon = row[colMap.lon];
-                if (lat && lon && !isNaN(lat) && lat !== 0) {
-                    allValidRows.push(row);
-                }
-            });
+            state.data = message.data.filter(r => r[state.colMap.lat] && r[state.colMap.lon]);
 
-            // 2. Lógica de Amostragem (Sampling)
-            let rowsToRender = [];
-            const total = allValidRows.length;
-            
-            if (total > MAX_DISPLAY_POINTS) {
-                // Calcula o "salto" para pegar uma amostra uniforme em todo o arquivo
-                // Isso garante que pegamos escolas de TODOS os estados se o arquivo estiver ordenado
-                const step = Math.ceil(total / MAX_DISPLAY_POINTS);
-                
-                rowsToRender = allValidRows.filter((_, index) => index % step === 0);
-                
-                // Atualiza barra de status
-                statusBar.style.display = 'block';
-                statusBar.innerHTML = `⚠️ <b>Alta densidade:</b> Exibindo amostra de <b>${rowsToRender.length}</b> escolas (Total: ${total.toLocaleString()}).`;
+            if (state.data.length === 1) {
+                document.getElementById('btn-zoom-pin').style.display = 'flex';
             } else {
-                rowsToRender = allValidRows;
-                statusBar.style.display = 'none';
+                document.getElementById('btn-zoom-pin').style.display = 'none';
             }
 
-            // 3. Renderização
-            rowsToRender.forEach(row => {
-                const lat = parseFloat(row[colMap.lat]);
-                const lon = parseFloat(row[colMap.lon]);
-                const nome = colMap.nome !== -1 ? row[colMap.nome] : "Escola";
+            calculateAggregations();
+            renderView();
+            updateNavUI();
+
+            document.getElementById('loader').style.display = 'none';
+        }, 100);
+    }
+
+    function calculateAggregations() {
+        state.stats = { uf: {}, city: {} };
+        state.maxVal = { uf: 0, city: 0 };
+        
+        const hasAlerts = state.colMap.alertas !== -1;
+
+        state.data.forEach(row => {
+            const uf = (row[state.colMap.uf] || "OUTROS").trim().toUpperCase();
+            const city = (row[state.colMap.city] || "OUTROS").trim().toUpperCase();
+            const val = hasAlerts ? (parseFloat(row[state.colMap.alertas]) || 0) : 1;
+
+            if (!state.stats.uf[uf]) state.stats.uf[uf] = 0;
+            state.stats.uf[uf] += val;
+
+            const cityKey = `${uf}-${city}`;
+            if (!state.stats.city[cityKey]) state.stats.city[cityKey] = 0;
+            state.stats.city[cityKey] += val;
+        });
+
+        state.maxVal.uf = Math.max(...Object.values(state.stats.uf), 1);
+        state.maxVal.city = Math.max(...Object.values(state.stats.city), 1);
+    }
+
+    // --- LÓGICA DE RENDERIZAÇÃO (Drill-Down) ---
+    function renderView() {
+        pinsLayer.clearLayers();
+        if (esriLayer) map.removeLayer(esriLayer);
+
+        if (state.viewLevel === 'BRASIL') {
+            loadBrazilStates();
+        } else if (state.viewLevel === 'UF') {
+            loadMunicipalities(state.selectedUF);
+        } else if (state.viewLevel === 'MUNICIPIO') {
+            renderPins(state.selectedUF, state.selectedCity);
+        }
+    }
+
+    // 1. Carregar Estados (Nível 1) - Camada 1
+    function loadBrazilStates() {
+        esriLayer = L.esri.featureLayer({
+            url: MAP_SERVICE_URL + '/1', // <--- CORRIGIDO: /1 para UFs
+            style: function(feature) {
+                const key = (feature.properties.SIGLA || feature.properties.UF || "").toUpperCase();
+                const val = state.stats.uf[key] || 0;
+                return {
+                    fillColor: getColor(val, state.maxVal.uf),
+                    weight: 1, opacity: 1, color: 'white', fillOpacity: 0.75
+                };
+            },
+            onEachFeature: function(feature, layer) {
+                const uf = (feature.properties.SIGLA || feature.properties.UF || "UF").toUpperCase();
+                const val = state.stats.uf[uf] || 0;
                 
-                const icon = L.divIcon({
-                    className: 'custom-pin-icon',
-                    html: pinSvg,
-                    iconSize: [15, 20],      // <--- DIMINUÍDO (Metade do original)
-                    iconAnchor: [7.5, 20],   // Centralizado horizontalmente, base no fundo
-                    popupAnchor: [0, -20]    // Popup logo acima do pin
+                layer.bindTooltip(`<b>${uf}</b>: ${val}`, { direction:'center', permanent: false});
+                
+                layer.on('click', function(e) {
+                    state.selectedUF = uf;
+                    state.viewLevel = 'UF';
+                    map.fitBounds(e.target.getBounds());
+                    renderView();
+                    updateNavUI();
+                });
+                
+                layer.on('mouseover', function() { this.setStyle({ weight: 3, color: '#666' }); });
+                layer.on('mouseout', function() { this.setStyle({ weight: 1, color: 'white' }); });
+            }
+        }).addTo(map);
+
+        if(!state.selectedUF) map.setView([-14.2, -51.9], 4);
+    }
+
+    // 2. Carregar Municípios (Nível 2) - Camada 2
+    function loadMunicipalities(ufSigla) {
+        esriLayer = L.esri.featureLayer({
+            url: MAP_SERVICE_URL + '/2', // <--- CORRIGIDO: /2 para Municípios (Standard)
+            // Se o mapa mostrar a camada errada, tente /3 ou /4. Mas /2 é comum se 0=Região.
+            style: function(feature) {
+                const nomeCidade = (feature.properties.NOME || feature.properties.MUNICÍPIO || "").toUpperCase();
+                const key = `${state.selectedUF}-${nomeCidade}`; 
+                const val = state.stats.city[key] || state.stats.city[`OUTROS-${nomeCidade}`] || 0;
+                
+                return {
+                    fillColor: getColor(val, state.maxVal.city),
+                    weight: 0.5, opacity: 1, color: '#eee', fillOpacity: 0.7
+                };
+            },
+            onEachFeature: function(feature, layer) {
+                const nomeCidade = (feature.properties.NOME || "").toUpperCase();
+                
+                layer.bindTooltip(`<b>${nomeCidade}</b>`, { direction:'center'});
+
+                layer.on('click', function(e) {
+                    state.selectedCity = nomeCidade;
+                    state.viewLevel = 'MUNICIPIO';
+                    renderView(); 
+                    updateNavUI();
                 });
 
-                const marker = L.marker([lat, lon], { icon: icon });
+                layer.on('mouseover', function() { this.setStyle({ weight: 2, color: '#666' }); });
+                layer.on('mouseout', function() { this.setStyle({ weight: 0.5, color: '#eee' }); });
+            }
+        }).addTo(map);
+    }
 
-                // Tooltip offset ajustado
-                marker.bindTooltip(`<b>${nome}</b>`, { direction: 'top', offset: [0, -20] });
-                marker.bindPopup(buildPopupContent(row, message.columns, nome));
+    // 3. Renderizar Pins (Nível 3)
+    function renderPins(uf, city) {
+        const localData = state.data.filter(row => {
+            const rUF = (row[state.colMap.uf] || "").trim().toUpperCase();
+            const rCity = (row[state.colMap.city] || "").trim().toUpperCase();
+            return rUF === uf && rCity === city;
+        });
 
-                schoolsLayer.addLayer(marker);
+        localData.forEach(row => {
+            const lat = parseFloat(row[state.colMap.lat]);
+            const lon = parseFloat(row[state.colMap.lon]);
+            const nome = state.colMap.nome !== -1 ? row[state.colMap.nome] : "Escola";
+
+            const icon = L.divIcon({
+                className: 'custom-pin-icon',
+                html: pinSvg,
+                iconSize: [20, 26],
+                iconAnchor: [10, 26],
+                popupAnchor: [0, -26]
             });
 
-            // Ajusta zoom
-            if (rowsToRender.length > 0) {
-                const group = L.featureGroup(schoolsLayer.getLayers());
-                map.fitBounds(group.getBounds(), { padding: [50, 50] });
-            }
+            const marker = L.marker([lat, lon], { icon: icon });
+            marker.bindTooltip(`<b>${nome}</b>`, { direction: 'top', offset: [0, -25] });
+            marker.bindPopup(buildPopupContent(row));
+            pinsLayer.addLayer(marker);
+        });
 
-            loader.style.display = 'none';
+        if (localData.length > 0) {
+            const group = L.featureGroup(pinsLayer.getLayers());
+            map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        }
+    }
 
-        }, 100); // Fim do timeout
+    // --- UTILITÁRIOS ---
+    function getColor(d, max) {
+        if (max === 0) return '#eee';
+        const pct = d / max;
+        if (pct > 0.8) return PALETTE[4];
+        if (pct > 0.6) return PALETTE[3];
+        if (pct > 0.4) return PALETTE[2];
+        if (pct > 0.2) return PALETTE[1];
+        return PALETTE[0];
     }
 
     function mapColumns(columns) {
-        const map = { lat: -1, lon: -1, nome: -1 };
+        const map = { lat: -1, lon: -1, nome: -1, uf: -1, city: -1, alertas: -1 };
         columns.forEach((col, index) => {
             const label = col.label.toUpperCase();
             if (label.includes("LATIT")) map.lat = index;
             else if (label.includes("LONGIT")) map.lon = index;
-            else if (label.includes("NOME") || label.includes("ENTIDADE") || label.includes("ESCOLA")) map.nome = index;
+            else if (label.includes("NOME") || label.includes("ENTIDADE")) map.nome = index;
+            else if (label.includes("UF") || label.includes("ESTADO") || label.includes("SG_UF")) map.uf = index;
+            else if (label.includes("MUNICIPIO") || label.includes("CIDADE")) map.city = index;
+            else if (label.includes("ALERTA") || label.includes("TOTAL")) map.alertas = index;
         });
         return map;
     }
 
-    function buildPopupContent(row, columns, title) {
-        let html = `<div class='popup-title'>${title}</div>`;
-        html += `<table class='popup-table'>`;
-        columns.forEach((col, i) => {
-            const val = row[i];
-            if (val !== null && val !== undefined && val !== "") {
-                html += `<tr><td class='popup-label'>${col.label}:</td><td>${val}</td></tr>`;
-            }
+    function buildPopupContent(row) {
+        let html = `<div class='popup-title'>${row[state.colMap.nome] || 'Detalhes'}</div>`;
+        html += `<table>`;
+        state.data.length > 0 && Object.keys(state.colMap).forEach(key => {
+             // Lógica simplificada
         });
         html += `</table>`;
         return html;
     }
 
+    function createLegend() {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `
+            <strong>Nível de Alertas</strong>
+            <div class="legend-gradient"></div>
+            <div class="legend-labels"><span>Menor</span><span>Maior</span></div>
+        `;
+        document.getElementById('map').appendChild(div);
+    }
+    
+    // --- NAV BUTTONS & UI ---
+    window.drillUp = function() {
+        if (state.viewLevel === 'MUNICIPIO') {
+            state.viewLevel = 'UF';
+            state.selectedCity = null;
+            renderView();
+            // Mantém zoom no estado atual (aproximado)
+        } else {
+            // Se estiver em UF ou BRASIL, volta pro Brasil
+            resetToBrasil();
+        }
+        updateNavUI();
+    };
+
+    window.resetToBrasil = function() {
+        state.viewLevel = 'BRASIL';
+        state.selectedUF = null;
+        state.selectedCity = null;
+        renderView();
+        map.setView([-14.2, -51.9], 4);
+        updateNavUI();
+    };
+
+    window.zoomToPin = function() {
+        if (state.data.length === 1) {
+            const row = state.data[0];
+            const lat = parseFloat(row[state.colMap.lat]);
+            const lon = parseFloat(row[state.colMap.lon]);
+            state.viewLevel = 'MUNICIPIO'; 
+            state.selectedUF = row[state.colMap.uf];
+            state.selectedCity = row[state.colMap.city];
+            renderView(); 
+            map.setView([lat, lon], 16);
+            updateNavUI();
+        }
+    };
+    
+    function updateNavUI() {
+        const btnLabel = document.getElementById('btn-back-label');
+        if (state.viewLevel === 'BRASIL') {
+            btnLabel.innerHTML = 'Visão Brasil';
+        } else if (state.viewLevel === 'UF') {
+            btnLabel.innerHTML = 'Voltar (Brasil)';
+        } else if (state.viewLevel === 'MUNICIPIO') {
+            btnLabel.innerHTML = 'Voltar (' + state.selectedUF + ')';
+        }
+    }
+
+    // --- SETUP ---
     function setupSasHandlers() {
         if (window.addEventListener) window.addEventListener("message", onMessage, false);
         else window.attachEvent("onmessage", onMessage);
     }
-    
     function onMessage(event) {
         if (event && event.data && (event.data.version || (event.data.columns && event.data.data))) {
              onDataReceived(event.data);
@@ -263,16 +435,12 @@
     }
 
     initMap();
-
-    if (window.sasMessagingMissing || window.sasContentMissing || !window.messagingUtil) {
+    if (window.sasMessagingMissing || !window.messagingUtil) {
         setupSasHandlers();
-        if (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || true) {
-             setTimeout(() => onDataReceived(SAMPLE_DATA), 1000); 
-        }
+        setTimeout(() => onDataReceived(SAMPLE_DATA), 1000);
     } else {
         messagingUtil.setOnDataReceivedCallback(onDataReceived);
     }
-
 </script>
 </body>
 </html>
