@@ -1,0 +1,506 @@
+<!-- 
+  CONFIRMAÇÃO DE REQUISITOS:
+  1. Rótulos dos alertas são lidos dinamicamente de message.columns[i].label.
+  2. O layout interno dos alertas utiliza estritamente 3 colunas por linha (grid CSS).
+  3. O componente aceita N colunas de alerta (loop dinâmico a partir do índice 2).
+  4. Fallback para dados de amostra incluído para testes locais.
+-->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Alertas Escolares - SAS VA DDC</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome para Ícones (Via CDN para garantir funcionamento) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            /* --- Variáveis de Estilização (Fácil Customização) --- */
+            
+            /* Cores de Estado */
+            --color-alert-active-bg: #D32F2F; /* Vermelho Material */
+            --color-alert-active-text: #FFFFFF;
+            --color-alert-inactive-bg: #F5F5F5; /* Cinza muito claro */
+            --color-alert-inactive-border: #E0E0E0;
+            --color-alert-inactive-text: #9E9E9E;
+            
+            /* Cores do Badge de Total */
+            --color-badge-danger: #D32F2F;
+            --color-badge-success: #2E7D32;
+
+            /* Cores Gerais */
+            --bg-body: #FAFAFA;
+            --bg-card: #FFFFFF;
+            --text-primary: #212121;
+            --text-secondary: #757575;
+            --shadow-card: 0 2px 5px rgba(0,0,0,0.05);
+            --shadow-card-hover: 0 8px 15px rgba(0,0,0,0.1);
+
+            /* Dimensões */
+            --card-radius: 8px;
+            --alert-radius: 4px;
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            margin: 0;
+            padding: var(--spacing-md);
+            /* Evita scroll horizontal indesejado no iframe do SAS */
+            overflow-x: hidden; 
+        }
+
+        /* Container Principal (Grid Responsivo de Escolas) */
+        #app-container {
+            display: grid;
+            /* Cards com largura mínima de 320px, preenchendo o espaço disponível */
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: var(--spacing-lg);
+            padding-bottom: var(--spacing-lg);
+        }
+
+        /* --- Card da Escola --- */
+        .school-card {
+            background-color: var(--bg-card);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-card);
+            padding: var(--spacing-md);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(0,0,0,0.03);
+        }
+
+        .school-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-card-hover);
+        }
+
+        /* Cabeçalho do Card */
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--spacing-md);
+            border-bottom: 1px solid #EEE;
+            padding-bottom: var(--spacing-sm);
+        }
+
+        .school-info {
+            flex: 1;
+            min-width: 0; /* Necessário para o truncamento funcionar no Flex */
+            margin-right: var(--spacing-sm);
+        }
+
+        .school-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 0;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: help; /* Indica que tem tooltip nativo */
+        }
+
+        .school-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        /* Badge de Total */
+        .total-badge {
+            background-color: var(--color-badge-success);
+            color: white;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            min-width: 24px;
+            text-align: center;
+        }
+        .total-badge.has-alerts {
+            background-color: var(--color-badge-danger);
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(211, 47, 47, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
+        }
+
+        /* --- Grid de Alertas (3 colunas por linha) --- */
+        .alerts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* REQUISITO: 3 colunas fixas */
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        /* Item de Alerta Individual */
+        .alert-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--spacing-sm);
+            border-radius: var(--alert-radius);
+            text-align: center;
+            transition: all 0.2s;
+            position: relative;
+            min-height: 80px; /* Altura consistente */
+        }
+
+        /* Estado: Inativo (0) */
+        .alert-item.status-0 {
+            background-color: var(--bg-card);
+            border: 1px solid var(--color-alert-inactive-border);
+            color: var(--color-alert-inactive-text);
+        }
+
+        /* Estado: Ativo (1) */
+        .alert-item.status-1 {
+            background-color: var(--color-alert-active-bg);
+            color: var(--color-alert-active-text);
+            border: 1px solid var(--color-alert-active-bg);
+        }
+
+        .alert-icon {
+            font-size: 1.2rem;
+            margin-bottom: 4px;
+        }
+
+        .alert-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            line-height: 1.2;
+            word-wrap: break-word; /* Quebra texto longo */
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Limita a 2 linhas */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Tooltip Customizado (via title html, mas estilizado via CSS apenas para cursor) */
+        .alert-item[title] {
+            cursor: help;
+        }
+
+        /* Controle de "Ver Mais" */
+        .expand-control {
+            text-align: center;
+            padding-top: var(--spacing-xs);
+        }
+        
+        .btn-expand {
+            background: none;
+            border: none;
+            color: #1976D2;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .btn-expand:hover {
+            text-decoration: underline;
+        }
+
+        .hidden-alerts {
+            display: none;
+        }
+
+        /* Fallback de Carregamento */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        /* Responsividade para telas muito pequenas */
+        @media (max-width: 480px) {
+            .alerts-grid {
+                grid-template-columns: repeat(3, 1fr); 
+                /* Mantemos 3 colunas mesmo no mobile, ou mudamos para 2 se ficar muito apertado. 
+                   O requisito diz "3 colunas por linha", vou manter, mas com texto menor se necessário. */
+            }
+            .alert-label {
+                font-size: 0.65rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <div class="loading">
+            <i class="fas fa-circle-notch fa-spin"></i> Aguardando dados do SAS...
+        </div>
+    </div>
+
+    <!-- 
+        IMPORTAÇÃO DE UTILITÁRIOS SAS
+        Tentativa de carregar os scripts padrões. Se falhar, o script inline abaixo resolverá.
+    -->
+    <script src="../../util/messagingUtil.js"></script>
+    <script src="../../util/contentUtil.js"></script>
+
+    <script>
+        /* ==========================================================================
+           1. CONFIGURAÇÃO E CONSTANTES
+           ========================================================================== */
+        const MAX_VISIBLE_ALERTS = 6; // Número de alertas visíveis antes de colapsar
+        
+        /* ==========================================================================
+           2. DADOS DE AMOSTRA (FALLBACK)
+           Para teste local fora do SAS VA.
+           ========================================================================== */
+        const SAMPLE_DATA = {
+            version: "1",
+            rowCount: 4,
+            availableRowCount: 4,
+            columns: [
+                { name: "bi1", label: "Nome da Escola", type: "string" },
+                { name: "bi2", label: "Total Alertas", type: "number" },
+                { name: "bi3", label: "Evasão Escolar", type: "number" }, // Alerta 1
+                { name: "bi4", label: "Baixa Frequência", type: "number" }, // Alerta 2
+                { name: "bi5", label: "Notas Críticas", type: "number" }, // Alerta 3
+                { name: "bi6", label: "Infraestrutura", type: "number" }, // Alerta 4
+                { name: "bi7", label: "Falta Professores", type: "number" }, // Alerta 5
+                { name: "bi8", label: "Merenda", type: "number" }, // Alerta 6
+                { name: "bi9", label: "Transporte", type: "number" } // Alerta 7 (Vai testar o "Ver Mais")
+            ],
+            data: [
+                ["Escola Municipal Dom Pedro", 4, 1, 1, 1, 0, 0, 1, 0],
+                ["Colégio Estadual Cora Coralina", 0, 0, 0, 0, 0, 0, 0, 0],
+                ["Centro Educacional Futuro", 2, 0, 1, 0, 0, 1, 0, 0],
+                ["Instituto Saber Total (Nome Muito Longo Para Teste de Truncamento CSS)", 7, 1, 1, 1, 1, 1, 1, 1]
+            ]
+        };
+
+        /* ==========================================================================
+           3. LÓGICA DE DADOS (PROCESSAMENTO)
+           ========================================================================== */
+        
+        // Mapeia o array plano do SAS para objetos estruturados
+        function processData(message) {
+            if (!message || !message.data) return [];
+
+            const columns = message.columns;
+            const rows = message.data;
+
+            // Define índices baseados na ordem obrigatória
+            // 0: Escola, 1: Total, 2+: Alertas
+            const idxSchool = 0;
+            const idxTotal = 1;
+
+            return rows.map(row => {
+                const alerts = [];
+                
+                // Itera dinamicamente a partir da coluna 2 para capturar N alertas
+                for (let i = 2; i < columns.length; i++) {
+                    // Proteção contra colunas extras que não sejam numéricas (medidas)
+                    // Assumimos que o que vem depois do total é flag (0 ou 1)
+                    let val = row[i];
+                    
+                    // Tratamento simples se vier como string "1" ou número 1
+                    let flag = (parseInt(val) === 1); 
+
+                    alerts.push({
+                        id: columns[i].name,
+                        label: columns[i].label, // Label dinâmico vindo do SAS
+                        active: flag
+                    });
+                }
+
+                return {
+                    schoolName: row[idxSchool],
+                    totalAlerts: parseInt(row[idxTotal] || 0),
+                    alerts: alerts
+                };
+            });
+        }
+
+        /* ==========================================================================
+           4. LÓGICA DE RENDERIZAÇÃO (DOM)
+           ========================================================================== */
+
+        function renderCards(schoolData) {
+            const container = document.getElementById('app-container');
+            container.innerHTML = ''; // Limpa estado anterior (loading ou dados antigos)
+
+            if (schoolData.length === 0) {
+                container.innerHTML = '<div class="loading">Nenhum dado recebido.</div>';
+                return;
+            }
+
+            schoolData.forEach(school => {
+                const card = createSchoolCard(school);
+                container.appendChild(card);
+            });
+        }
+
+        function createSchoolCard(school) {
+            const card = document.createElement('div');
+            card.className = 'school-card';
+
+            // --- Header ---
+            const header = document.createElement('div');
+            header.className = 'card-header';
+
+            // Info Section
+            const info = document.createElement('div');
+            info.className = 'school-info';
+            
+            const nameEl = document.createElement('h3');
+            nameEl.className = 'school-name';
+            nameEl.textContent = school.schoolName;
+            nameEl.title = school.schoolName; // Tooltip nativo completo
+
+            const metaEl = document.createElement('div');
+            metaEl.className = 'school-meta';
+            metaEl.textContent = `Monitoramento de Risco`;
+
+            info.appendChild(nameEl);
+            info.appendChild(metaEl);
+
+            // Badge Section
+            const badge = document.createElement('span');
+            const hasAlerts = school.totalAlerts > 0;
+            badge.className = `total-badge ${hasAlerts ? 'has-alerts' : ''}`;
+            badge.textContent = school.totalAlerts;
+            badge.title = hasAlerts ? "Atenção necessária" : "Situação normal";
+
+            header.appendChild(info);
+            header.appendChild(badge);
+
+            // --- Grid de Alertas ---
+            const alertsContainer = document.createElement('div');
+            alertsContainer.className = 'alerts-grid';
+
+            // Renderiza alertas
+            // Separa os primeiros 6 dos restantes se houver muitos
+            school.alerts.forEach((alert, index) => {
+                const alertEl = createAlertBlock(alert);
+                
+                // Lógica de Colapsar
+                if (index >= MAX_VISIBLE_ALERTS) {
+                    alertEl.classList.add('hidden-alerts');
+                    alertEl.dataset.hidden = "true";
+                }
+                
+                alertsContainer.appendChild(alertEl);
+            });
+
+            card.appendChild(header);
+            card.appendChild(alertsContainer);
+
+            // --- Botão Ver Mais (Se necessário) ---
+            if (school.alerts.length > MAX_VISIBLE_ALERTS) {
+                const controlDiv = document.createElement('div');
+                controlDiv.className = 'expand-control';
+                
+                const btn = document.createElement('button');
+                btn.className = 'btn-expand';
+                btn.innerHTML = `Ver mais (${school.alerts.length - MAX_VISIBLE_ALERTS})`;
+                
+                btn.onclick = () => {
+                    const hiddenItems = card.querySelectorAll('.hidden-alerts');
+                    const isExpanding = btn.textContent.includes('Ver mais');
+                    
+                    if (isExpanding) {
+                        hiddenItems.forEach(el => el.style.display = 'flex'); // Mostra (flex pois é o display do item)
+                        btn.textContent = 'Ver menos';
+                    } else {
+                        hiddenItems.forEach(el => el.style.display = 'none');
+                        btn.textContent = `Ver mais (${school.alerts.length - MAX_VISIBLE_ALERTS})`;
+                    }
+                };
+
+                controlDiv.appendChild(btn);
+                card.appendChild(controlDiv);
+            }
+
+            return card;
+        }
+
+        function createAlertBlock(alert) {
+            const el = document.createElement('div');
+            // Adiciona classe status-1 ou status-0
+            el.className = `alert-item status-${alert.active ? '1' : '0'}`;
+            
+            // Tooltip Acessível
+            const statusText = alert.active ? "ALERTA ATIVO" : "Normal";
+            el.title = `${alert.label}: ${statusText}`;
+            el.setAttribute('aria-label', `${alert.label}: ${statusText}`);
+
+            // Ícone
+            const icon = document.createElement('i');
+            // Se ativo: triangulo de alerta. Se inativo: check ou círculo.
+            icon.className = `alert-icon fas ${alert.active ? 'fa-exclamation-triangle' : 'fa-check-circle'}`;
+            
+            // Texto
+            const label = document.createElement('span');
+            label.className = 'alert-label';
+            label.textContent = alert.label;
+
+            el.appendChild(icon);
+            el.appendChild(label);
+
+            return el;
+        }
+
+        /* ==========================================================================
+           5. INTEGRAÇÃO SAS (Messaging Util Handler)
+           ========================================================================== */
+        
+        // Callback principal chamado quando dados chegam
+        function onDataReceived(messageFromSAS) {
+            if(messageFromSAS && messageFromSAS.data) {
+                const processed = processData(messageFromSAS);
+                renderCards(processed);
+            } else {
+                // Caso o SAS envie mensagem vazia ou malformada
+                renderCards([]);
+            }
+        }
+
+        // --- SHIM (Compatibilidade e Teste Local) ---
+        // Verifica se o objeto 'va' do SAS existe. Se não, cria um mock para teste local.
+        if (!window.va) window.va = {};
+        if (!window.va.messagingUtil) {
+            
+            console.warn("Ambiente SAS não detectado ou utilitários não carregados. Usando Fallback Local.");
+            
+            // Simula o comportamento do SAS messagingUtil
+            window.va.messagingUtil = {
+                setOnDataReceivedCallback: (callback) => {
+                    // Armazena o callback e dispara com dados de amostra após um pequeno delay
+                    window._onDataReceived = callback;
+                    setTimeout(() => {
+                        console.log("Carregando SAMPLE_DATA...");
+                        callback(SAMPLE_DATA);
+                    }, 500); 
+                }
+            };
+        }
+
+        // Inicialização
+        if (window.va && window.va.messagingUtil) {
+            window.va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
+        }
+
+    </script>
+</body>
+</html>
