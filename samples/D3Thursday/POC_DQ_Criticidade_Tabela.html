@@ -466,7 +466,7 @@
                 card.innerHTML = `
                     <div class="card-title" title="${item.fullName}">${item.name}</div>
                     <div class="card-metric">
-                        Total 
+                        Total de alertas
                         <span class="metric-value">${new Intl.NumberFormat('pt-BR').format(item.volume)}</span>
                     </div>
                 `;
@@ -517,7 +517,7 @@
                         <span style="font-weight:bold;">${processedItem.level}</span>
                     </div>
                     <div>
-                        <strong style="display:block; font-size:0.85rem; color:#888; text-transform:uppercase;">Total</strong>
+                        <strong style="display:block; font-size:0.85rem; color:#888; text-transform:uppercase;"></strong>
                         <span style="font-weight:bold; color:#1976D2;">${new Intl.NumberFormat('pt-BR').format(processedItem.volume)}</span>
                     </div>
                 </div>
