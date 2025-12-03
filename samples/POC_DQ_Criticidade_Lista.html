@@ -190,9 +190,8 @@
 
     /**
      * PROCESSAMENTO DE NOME (RESOLVE NAME)
-     * Lógica solicitada:
      * 1. Remove o prefixo "Nível de/da Severidade do Alerta -"
-     * 2. Remove o código após o pipe "|" (Opcional, mas recomendado para limpeza)
+     * 2. Remove o código após o pipe "|"
      */
     function resolveRuleName(rawLabel) {
         if (!rawLabel) return "Desconhecido";
@@ -200,11 +199,9 @@
         let clean = rawLabel;
 
         // 1. Remove o prefixo específico (Case Insensitive, aceita 'de' ou 'da' e traços variados)
-        // Regex: Começo da linha + Nível + d(e ou a) + Severidade + ... + Alerta + espaços/hífens
         clean = clean.replace(/^Nível d[ae] Severidade do Alerta\s*[-–]?\s*/i, '');
 
         // 2. Remove o sufixo técnico (tudo a partir do pipe |)
-        // Se a string tiver pipe, pegamos a PRIMEIRA parte (descrição), não a última (código).
         if (clean.includes('|')) {
             const parts = clean.split('|');
             clean = parts[0].trim();
@@ -213,7 +210,6 @@
         // 3. Limpeza final de sufixos numéricos do SAS, ex: (1) e espaços
         clean = clean.replace(/\s*\(\d+\)$/, '').trim();
 
-        // Se após a limpeza sobrar vazio (caso estranho), retorna o original
         return clean || rawLabel; 
     }
 
@@ -225,7 +221,7 @@
             return;
         }
 
-        const Schools = message.data.length; 
+        const totalSchools = message.data.length; 
         const columns = message.columns;
         
         // 1. Identificar colunas de REGRA
@@ -250,8 +246,6 @@
                 label.toLowerCase() === 'ano';
 
             if ((col.type === "number" || col.type === "string") && isPotentialRule && !isIdentifier) {
-                 
-                 // Gera o nome amigável limpando o label original
                  const friendlyName = resolveRuleName(label);
 
                  ruleColumnsIndices.push({
@@ -268,7 +262,6 @@
         }
 
         // 2. Agregar Dados (Lógica de Wide Data)
-        // Agrupa pelo "displayName" para unificar colunas duplicadas se houver
         const rulesAggregated = {}; 
 
         ruleColumnsIndices.forEach(rc => {
@@ -383,7 +376,7 @@
         });
     }
 
-    // Fallback Offline
+    // Fallback Offline (modo dev)
     window.onload = function() {
         setTimeout(() => {
             const container = document.getElementById('app-container');
