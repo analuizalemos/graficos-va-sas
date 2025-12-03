@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Regras - SAS VA (Auto Aggregation)</title>
+    <title>Painel de Regras - SAS VA (Final)</title>
 
     <!-- Importando Fonte Inter (Google Fonts) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -74,15 +74,6 @@
             display: flex;
             flex-direction: column;
             flex: 1;
-        }
-
-        .rule-code {
-            font-size: 11px;
-            color: var(--text-secondary);
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 2px;
         }
 
         .rule-name {
@@ -169,31 +160,32 @@
      * CONFIGURAÇÕES
      */
     
-    // Dicionário de Descrições (De/Para do Código Técnico para Texto Amigável)
+    // Dicionário de Descrições (Chaves devem bater com o final do nome da coluna)
+    // Dica: O código agora ignora maiúsculas/minúsculas na busca da chave.
     const RULE_DESCRIPTIONS = {
-        "Check_Negocio": "Inconsistência Infra: Salas Existentes vs Utilizadas",
-        "In_Agua_Rede_Publica": "Alteração: Água da Rede Pública",
-        "In_Almoxarifado": "Alteração: Almoxarifado",
-        "In_Banheiro": "Alteração: Banheiro",
-        "In_Comum_Eja_Fund": "Variação: Matrículas EJA Fundamental",
-        "In_Comum_Fund_Ai": "Variação: Matrículas Fund. Anos Iniciais",
-        "In_Comum_Medio_Medio": "Variação: Matrículas Ensino Médio",
-        "In_Comum_Prof": "Variação: Matrículas Ensino Profissional",
-        "In_Cozinha": "Alteração: Cozinha",
-        "In_Biblioteca": "Alteração: Biblioteca",
-        "In_Energia_Rede_Publica": "Alteração: Energia Rede Pública",
-        "In_Internet": "Alteração: Acesso à Internet",
-        "In_Laboratorio_Informatica": "Alteração: Lab. Informática",
-        "In_Parque_Infantil": "Alteração: Parque Infantil",
-        "In_Quadra_Esportes": "Alteração: Quadra de Esportes",
-        "In_Refeitorio": "Alteração: Refeitório",
-        "In_Saneamento_Basico": "Alteração: Saneamento Básico",
-        "In_Despensa": "Alteração: Despensa",
-        "In_Auditorio": "Alteração: Auditório",
-        "In_Patio_Coberto": "Alteração: Pátio Coberto",
-        "In_Patio_Descoberto": "Alteração: Pátio Descoberto",
-        "In_Area_Verde": "Alteração: Área Verde",
-        "In_Lavanderia": "Alteração: Lavanderia"
+        "check_negocio": "Inconsistência Infra: Salas Existentes vs Utilizadas",
+        "in_agua_rede_publica": "Alteração: Água da Rede Pública",
+        "in_almoxarifado": "Alteração: Almoxarifado",
+        "in_banheiro": "Alteração: Banheiro",
+        "in_comum_eja_fund": "Variação: Matrículas EJA Fundamental",
+        "in_comum_fund_ai": "Variação: Matrículas Fund. Anos Iniciais",
+        "in_comum_medio_medio": "Variação: Matrículas Ensino Médio",
+        "in_comum_prof": "Variação: Matrículas Ensino Profissional",
+        "in_cozinha": "Alteração: Cozinha",
+        "in_biblioteca": "Alteração: Biblioteca",
+        "in_energia_rede_publica": "Alteração: Energia Rede Pública",
+        "in_internet": "Alteração: Acesso à Internet",
+        "in_laboratorio_informatica": "Alteração: Lab. Informática",
+        "in_parque_infantil": "Alteração: Parque Infantil",
+        "in_quadra_esportes": "Alteração: Quadra de Esportes",
+        "in_refeitorio": "Alteração: Refeitório",
+        "in_saneamento_basico": "Alteração: Saneamento Básico",
+        "in_despensa": "Alteração: Despensa",
+        "in_auditorio": "Alteração: Auditório",
+        "in_patio_coberto": "Alteração: Pátio Coberto",
+        "in_patio_descoberto": "Alteração: Pátio Descoberto",
+        "in_area_verde": "Alteração: Área Verde",
+        "in_lavanderia": "Alteração: Lavanderia"
     };
 
     const LEVELS_CONFIG = {
@@ -205,10 +197,6 @@
         0: { label: "Ok", class: "badge-level-0" }
     };
 
-    /**
-     * SAMPLE DATA (Formato LARGURA/WIDE)
-     * Simula o envio de 1 linha por escola com várias colunas de regras.
-     */
     const SAMPLE_DATA_WIDE = {
         columns: [
             { label: "ID Escola", type: "string" },
@@ -230,28 +218,52 @@
     const formatNumber = (num) => new Intl.NumberFormat('pt-BR').format(num);
 
     /**
-     * LIMPEZA DE LABEL ROBUSTA
-     * Remove sufixos como (1), (23) e prefixos com pipe |
+     * LIMPEZA DE LABEL
+     * Remove pipes, sufixos (1) e espaços. Retorna lowercase para facilitar o match.
      */
     function extractRuleCode(rawLabel) {
         if (!rawLabel) return "";
         
-        // 1. Remove sufixos numéricos do SAS, ex: "Nome (1)" -> "Nome"
-        // Regex: espaço opcional \s* + parêntese aberto \( + dígitos \d+ + parêntese fechado \) + fim da linha $
-        let clean = rawLabel.replace(/\s*\(\d+\)$/, '');
-
-        // 2. Remove o prefixo com pipe se existir
+        let clean = rawLabel;
+        
+        // 1. Pega a parte depois do pipe se existir
         if (clean.includes('|')) {
             const parts = clean.split('|');
-            clean = parts[parts.length - 1].trim();
+            clean = parts[parts.length - 1];
         }
-        
-        return clean.trim();
+
+        // 2. Remove sufixos numéricos (1), (2024), etc e espaços
+        clean = clean.replace(/\(\d+\)/g, '').trim();
+
+        return clean; 
     }
 
     /**
-     * PROCESSAMENTO PRINCIPAL
+     * BUSCA DESCRIÇÃO
+     * Tenta encontrar a descrição correspondente no dicionário
      */
+    function getFriendlyName(code) {
+        // Normaliza para busca (lowercase)
+        const codeLower = code.toLowerCase();
+        
+        // Tenta match exato
+        if (RULE_DESCRIPTIONS[codeLower]) {
+            return RULE_DESCRIPTIONS[codeLower];
+        }
+
+        // Tenta verificar se alguma chave do dicionário está contida no código
+        // Ex: code="Check_Negocio_v2" e chave="check_negocio"
+        const keys = Object.keys(RULE_DESCRIPTIONS);
+        for (let key of keys) {
+            if (codeLower.includes(key)) {
+                return RULE_DESCRIPTIONS[key];
+            }
+        }
+
+        // Se falhar tudo, retorna o código original "bonitinho"
+        return code;
+    }
+
     function onDataReceived(message) {
         const container = document.getElementById('app-container');
         
@@ -263,33 +275,30 @@
         const totalSchools = message.data.length; 
         const columns = message.columns;
         
-        // 1. Identificar quais colunas são REGRAS
+        // 1. Identificar colunas de REGRA
         const ruleColumnsIndices = [];
         
         columns.forEach((col, index) => {
             const label = col.label;
-            const cleanCode = extractRuleCode(label); // Agora remove (1) antes de checar
-            
-            // Critérios para considerar como regra:
-            // 1. É numérico
-            // 2. O código limpo existe no nosso dicionário OU o label original tem cara de regra
-            const isKnownRule = RULE_DESCRIPTIONS.hasOwnProperty(cleanCode);
-            const looksLikeRule = label.includes('|') || label.toLowerCase().includes('nível') || cleanCode.startsWith('In_') || cleanCode.startsWith('Check_');
+            const cleanCode = extractRuleCode(label);
+            const friendlyName = getFriendlyName(cleanCode);
 
-            if ((col.type === "number" || col.type === "string") && (isKnownRule || looksLikeRule)) {
-                 // Filtra colunas que claramente não são regras (ex: ID, Ano) se escaparem
-                 if (cleanCode.length > 2 && cleanCode !== "ID" && cleanCode !== "Ano") {
+            // Se conseguimos uma descrição diferente do código ou se o label parece regra
+            const looksLikeRule = label.includes('|') || label.toLowerCase().includes('nível') || cleanCode.toLowerCase().startsWith('in_') || cleanCode.toLowerCase().startsWith('check_');
+
+            if ((col.type === "number" || col.type === "string") && looksLikeRule) {
+                 if (cleanCode.length > 2 && cleanCode !== "ID") {
                      ruleColumnsIndices.push({
                          index: index,
                          code: cleanCode,
-                         label: label
+                         displayName: friendlyName
                      });
                  }
             }
         });
 
         if (ruleColumnsIndices.length === 0) {
-            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma coluna de regra identificada.</div>';
+            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma regra identificada. Verifique os nomes das colunas.</div>';
             return;
         }
 
@@ -297,12 +306,15 @@
         const rulesAggregated = {}; 
 
         ruleColumnsIndices.forEach(rc => {
-            // Garante que a chave no objeto agregado seja o código LIMPO
-            rulesAggregated[rc.code] = { 
-                count: 0, 
-                maxLevel: 0,
-                code: rc.code
-            };
+            // Usa o displayName como chave para agrupar (caso colunas duplicadas gerem o mesmo nome)
+            if (!rulesAggregated[rc.code]) {
+                rulesAggregated[rc.code] = { 
+                    count: 0, 
+                    maxLevel: 0,
+                    name: rc.displayName,
+                    code: rc.code
+                };
+            }
         });
 
         message.data.forEach(row => {
@@ -319,17 +331,14 @@
             });
         });
 
-        // 3. Transformar em Array
+        // 3. Preparar Array Final
         let processedData = Object.values(rulesAggregated)
             .filter(item => item.count > 0)
             .map(item => {
                 let lvl = item.maxLevel > 5 ? 5 : item.maxLevel;
-                // Busca a descrição usando o código limpo
-                let displayName = RULE_DESCRIPTIONS[item.code] || item.code;
                 
                 return {
-                    code: item.code,
-                    name: displayName,
+                    name: item.name, // Nome amigável já resolvido
                     level: lvl,
                     total: item.count,
                     percent: (item.count / totalSchools) * 100
@@ -365,9 +374,9 @@
             const card = document.createElement('div');
             card.className = 'rule-card';
             
+            // Removido o <span class="rule-code">
             const nameHtml = `
                 <div class="rule-name-container">
-                    <span class="rule-code">${item.code}</span>
                     <h3 class="rule-name">${item.name}</h3>
                 </div>`;
 
