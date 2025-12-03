@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Alertas (5 Níveis) - SAS DDC</title>
+    <title>Painel de Alertas - SAS DDC</title>
     
     <!-- Fontes Google -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,38 +12,24 @@
 
     <style>
         :root {
-            /* --- Paleta de Cores e Temas --- */
+            /* 1. CRÍTICO (Vinho/Vermelho Escuro) */
+            --color-critical: #8B0000; 
+            --bg-critical: #FFF0F0;
+            
+            /* 2. ALTO (Vermelho Vivo) */
+            --color-high: #DC143C;
+            --bg-high: #FFF5F5;
+
+            /* 3. MODERADO (Laranja/Âmbar) */
+            --color-moderate: #FF8C00; 
+            --bg-moderate: #FFF8E1;
+
+            /* 4. BAIXO (Amarelo/Dourado) */
+            --color-low: #DAA520; 
+            --bg-low: #FFFFF0;
+
             --bg-body: #fdfdfd;
-            --text-main: #333333;
-            --text-muted: #666666;
-            --shadow-card: 0 2px 5px rgba(0,0,0,0.05);
-            --shadow-hover: 0 5px 12px rgba(0,0,0,0.1);
-            
-            /* 1. CRÍTICO (Vermelho Escuro) */
-            --color-critical: #a71d2a; 
-            --bg-critical: #fff0f1;
-            
-            /* 2. ALTO (Vermelho Claro / Laranja Escuro) */
-            --color-high: #dc3545;
-            --bg-high: #fff5f5;
-
-            /* 3. MÉDIO (Laranja / Âmbar) */
-            --color-medium: #fd7e14; 
-            --bg-medium: #fff8f0;
-
-            /* 4. NORMAL (Verde) */
-            --color-normal: #28a745;
-            --bg-normal: #f0fff4;
-
-            /* 5. BAIXO (Azul / Neutro) */
-            --color-low: #17a2b8;
-            --bg-low: #f0faff;
-
-            /* Default (Outros) */
-            --color-default: #6c757d;
-            --bg-default: #f8f9fa;
-
-            /* Espaçamentos */
+            --text-main: #333;
             --radius-card: 6px;
         }
 
@@ -54,26 +40,25 @@
             background-color: var(--bg-body);
             color: var(--text-main);
             margin: 0;
-            padding: 10px; /* Reduzido padding para aproveitar espaço */
+            padding: 10px;
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden; 
         }
 
-        /* --- Main Grid Layout --- */
+        /* Container Grid */
         .kanban-container {
             display: grid;
-            /* 5 colunas no desktop */
-            grid-template-columns: repeat(5, 1fr); 
-            gap: 12px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
             flex: 1;
-            overflow-y: hidden;
+            overflow-y: hidden; 
             min-height: 0;
             padding-top: 10px;
         }
 
-        /* --- Column Styles --- */
+        /* Coluna */
         .kanban-column {
             background: #fff;
             border: 1px solid #eee;
@@ -81,42 +66,35 @@
             display: flex;
             flex-direction: column;
             height: 100%;
-            transition: opacity 0.3s;
         }
 
+        /* Header */
         .column-header {
-            padding: 10px 12px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             border-bottom: 1px solid rgba(0,0,0,0.05);
             font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             text-transform: uppercase;
             border-radius: 8px 8px 0 0;
         }
 
-        .column-header .title-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
+        .title-wrapper { display: flex; align-items: center; gap: 8px; }
 
         .badge-count {
-            background: white;
+            background: rgba(255,255,255,0.8);
             border-radius: 12px;
-            padding: 2px 8px;
+            padding: 2px 10px;
             font-size: 0.8rem;
             font-weight: bold;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            cursor: pointer;
-            transition: transform 0.2s, background 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
-        .badge-count:hover { transform: scale(1.1); }
-        .badge-count.active { background: #333; color: #fff; }
 
+        /* Body */
         .column-body {
-            padding: 10px;
+            padding: 12px;
             overflow-y: auto;
             flex: 1;
             display: flex;
@@ -124,75 +102,55 @@
             gap: 10px;
         }
 
-        /* --- Card Styles --- */
+        /* Card */
         .alert-card {
             background: white;
-            padding: 10px 12px;
+            padding: 12px 16px;
             border-radius: var(--radius-card);
-            box-shadow: var(--shadow-card);
-            border-left: 4px solid transparent; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border-left: 5px solid transparent; 
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
         }
-
         .alert-card:hover {
             transform: translateY(-2px);
-            box-shadow: var(--shadow-hover);
+            box-shadow: 0 5px 12px rgba(0,0,0,0.1);
         }
 
         .card-title {
             font-size: 0.85rem;
             font-weight: 700;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
             color: #333;
-            text-transform: uppercase;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .card-metric {
-            font-size: 0.8rem;
-            color: #777;
-        }
+        .card-metric { font-size: 0.8rem; color: #777; }
+        .metric-value { color: #333; font-weight: 500; margin-left: 4px; }
 
-        .metric-value {
-            color: #333;
-            font-weight: 500;
-            margin-left: 4px;
-        }
-
-        /* --- Dynamic Theme Application --- */
-        /* 1. Crítico */
+        /* Temas */
         .theme-critico .column-header { background-color: var(--bg-critical); color: var(--color-critical); }
         .theme-critico .alert-card { border-left-color: var(--color-critical); }
         .theme-critico .badge-count { color: var(--color-critical); }
         
-        /* 2. Alto */
         .theme-alto .column-header { background-color: var(--bg-high); color: var(--color-high); }
         .theme-alto .alert-card { border-left-color: var(--color-high); }
         .theme-alto .badge-count { color: var(--color-high); }
 
-        /* 3. Médio */
-        .theme-medio .column-header { background-color: var(--bg-medium); color: var(--color-medium); }
-        .theme-medio .alert-card { border-left-color: var(--color-medium); }
-        .theme-medio .badge-count { color: var(--color-medium); }
+        .theme-moderado .column-header { background-color: var(--bg-moderate); color: var(--color-moderate); }
+        .theme-moderado .alert-card { border-left-color: var(--color-moderate); }
+        .theme-moderado .badge-count { color: var(--color-moderate); }
 
-        /* 4. Normal */
-        .theme-normal .column-header { background-color: var(--bg-normal); color: var(--color-normal); }
-        .theme-normal .alert-card { border-left-color: var(--color-normal); }
-        .theme-normal .badge-count { color: var(--color-normal); }
-
-        /* 5. Baixo */
         .theme-baixo .column-header { background-color: var(--bg-low); color: var(--color-low); }
         .theme-baixo .alert-card { border-left-color: var(--color-low); }
         .theme-baixo .badge-count { color: var(--color-low); }
 
-        /* Default */
         .theme-default .column-header { background-color: var(--bg-default); color: var(--color-default); }
         .theme-default .alert-card { border-left-color: var(--color-default); }
 
-        /* --- Modal / Slide Panel --- */
+        /* Modal */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -202,13 +160,12 @@
             z-index: 1000;
         }
         .modal-overlay.open { display: flex; }
-        
         .slide-panel {
-            width: 350px;
+            width: 400px;
             max-width: 90%;
             background: white;
             height: 100%;
-            padding: 20px;
+            padding: 24px;
             box-shadow: -5px 0 15px rgba(0,0,0,0.1);
             transform: translateX(100%);
             transition: transform 0.3s ease-out;
@@ -216,292 +173,243 @@
             flex-direction: column;
         }
         .modal-overlay.open .slide-panel { transform: translateX(0); }
-
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 15px;
+        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999; float: right; }
+        
+        #statusMsg {
+            grid-column: 1/-1;
+            text-align: center;
+            margin-top: 50px;
+            color: #888;
+            font-size: 0.9rem;
         }
-        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999; }
-        .panel-row { margin-bottom: 10px; display: flex; justify-content: space-between; font-size: 0.9rem; }
-        .panel-label { font-weight: bold; color: #555; }
+        .error { color: red; font-weight: bold; }
 
-        /* --- Responsividade --- */
-        @media (max-width: 1200px) {
-            .kanban-container { grid-template-columns: repeat(3, 1fr); overflow-y: auto; }
-            .kanban-column { height: auto; min-height: 300px; }
+        @media (max-width: 1024px) {
+            .kanban-container { grid-template-columns: repeat(2, 1fr); overflow-y: auto; }
+            .kanban-column { min-height: 350px; }
             body { overflow-y: auto; }
         }
-        @media (max-width: 800px) {
-            .kanban-container { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 500px) {
+        @media (max-width: 600px) {
             .kanban-container { grid-template-columns: 1fr; }
         }
-
-        .kanban-column.dimmed { opacity: 0.3; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <!-- Container Principal das Colunas -->
     <div class="kanban-container" id="kanbanBoard">
-        <!-- Colunas injetadas via JS -->
-        <div style="text-align: center; width: 100%; padding-top: 50px; color: #999;">
-            Carregando dados do SAS VA...
+        <div id="statusMsg">
+            Aguardando dados...<br>
+            <small id="debugText"></small>
         </div>
     </div>
 
-    <!-- Modal/Slide Panel para Detalhes -->
+    <!-- Modal Detalhes -->
     <div class="modal-overlay" id="detailsModal">
         <div class="slide-panel">
-            <div class="panel-header">
-                <h3 style="margin:0;">Detalhes</h3>
-                <button class="close-btn" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="panel-content" id="modalContent">
-                <!-- Preenchido via JS -->
-            </div>
+            <div style="margin-bottom:10px;"><button class="close-btn" onclick="closeModal()">&times;</button></div>
+            <h2 style="margin:0; border-bottom:1px solid #eee; padding-bottom:10px; font-size:1.2rem;">Detalhes</h2>
+            <div id="modalContent" style="margin-top:20px; font-size:0.9rem; line-height:1.5;"></div>
         </div>
     </div>
 
     <script>
-        // --- 1. Utilitários SAS VA (Simulados) ---
-        if (!window.va) window.va = {};
-        try {
-            // Em ambiente real, o SAS injeta os utilitários
-        } catch (e) { console.log('Ambiente local detectado.'); }
-
-        // --- 2. Estado da Aplicação ---
-        const state = {
-            rawData: [],    
-            mappedData: [], 
-            columns: [],    
-            filterLevel: null,
-            sortBy: 'volume_desc' // Padrão: maior volume primeiro
+        // --- 1. SAMPLE DATA (Igual ao seu) ---
+        const SAMPLE_DATA = {
+            columns: [
+                { label: "Nível do alerta", type: "string" },
+                { label: "Nome da variável", type: "string" },
+                { label: "qtd_alerta", type: "number" }
+            ],
+            data: [
+                ["Alto", "NAL_DOMIN_TP_CATEGORIA_ESCOLA_PR", 264237],
+                ["Alto", "NAL_DOMIN_TP_LOCALIZACAO_DIFEREN", 295608],
+                ["Baixo", "NAL_COMP_IN_AGUA_REDE_PUBLICA", 268],
+                ["Critico", "NAL_DOMIN_DIF_CO_MUNICIPIO", 22],
+                ["Medio", "NAL_COMP_VAR_QT_EQUIP_DVD", 75]
+            ]
         };
 
-        // --- Configuração dos 5 Níveis ---
         const levelConfig = {
-            'CRÍTICO': { theme: 'theme-critico', icon: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>' },
-            'CRITICO': { theme: 'theme-critico', icon: '' }, // Alias sem acento
-            
+            'CRÍTICO': { theme: 'theme-critico', icon: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>' }, 
             'ALTO': { theme: 'theme-alto', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>' },
-            
-            'MÉDIO': { theme: 'theme-medio', icon: '<rect x="12" y="14" width="2" height="6"></rect><path d="M10 2a2 2 0 0 1 4 0v12h-4V2z"></path>' }, // Exemplo ícone termometro parcial ou similar
-            'MEDIO': { theme: 'theme-medio', icon: '' }, // Alias sem acento
-            
-            'NORMAL': { theme: 'theme-normal', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' },
-            
-            'BAIXO': { theme: 'theme-baixo', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line>' },
-            
-            'DEFAULT': { theme: 'theme-default', icon: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>' }
+            'MODERADO': { theme: 'theme-moderado', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>' },
+            'BAIXO': { theme: 'theme-baixo', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' },
+            'DEFAULT': { theme: 'theme-default', icon: '' }
         };
+        const levelsOrder = ['CRÍTICO', 'ALTO', 'MODERADO', 'BAIXO'];
 
-        // Ordem fixa de exibição das 5 colunas
-        const levelsOrder = ['CRÍTICO', 'ALTO', 'MÉDIO', 'NORMAL', 'BAIXO'];
+        let state = { columns: [], rawData: [] };
+        let isLoaded = false;
 
-        // --- 3. Integração ---
         function onDataReceived(message) {
-            if (!message || !message.data) return;
-            state.columns = message.columns;
-            state.rawData = message.data;
-            processData(); 
-            renderDashboard(); 
+            try {
+                if (isLoaded && !message) return;
+                if (!message || !message.data) throw new Error("Sem dados");
+
+                state.columns = message.columns;
+                state.rawData = message.data;
+                
+                const processed = processData(message.columns, message.data);
+                renderDashboard(processed);
+                isLoaded = true;
+            } catch (err) {
+                console.error(err);
+                document.getElementById('statusMsg').innerHTML = `<div class="error">Erro:${err.message}</div>`;
+            }
         }
 
-        // --- 4. Processamento ---
-        function processData() {
-            // Mapeamento automático de colunas
-            const colMap = { name: -1, level: -1, volume: -1 };
-            state.columns.forEach((col, index) => {
-                const label = col.label.toLowerCase();
-                if (label.includes('nome') || label.includes('var')) colMap.name = index;
-                else if (label.includes('nivel') || label.includes('risco') || label.includes('alert')) colMap.level = index;
-                else if (label.includes('vol') || label.includes('qtd') || label.includes('val')) colMap.volume = index;
+        function processData(columns, rows) {
+            let map = { name: -1, level: -1, volume: -1 };
+
+            // 1. Prioriza Volume para evitar confundir "qtd_alerta" com Nível
+            columns.forEach((col, i) => {
+                const txt = col.label.toLowerCase();
+                if (txt.includes('qtd') || txt.includes('volume') || txt.includes('quant')) {
+                    map.volume = i; 
+                }
             });
 
-            // Fallback para índices 0, 1, 2 se não identificar nomes
-            if (colMap.name === -1) colMap.name = 0;
-            if (colMap.level === -1) colMap.level = 1;
-            if (colMap.volume === -1) colMap.volume = 2;
+            // 2. Busca Nome
+            columns.forEach((col, i) => {
+                if (i === map.volume) return; // Pula se já é volume
+                const txt = col.label.toLowerCase();
+                if (txt.includes('nome') || txt.includes('variavel')) {
+                    map.name = i;
+                }
+            });
 
-            state.mappedData = state.rawData.map(row => {
-                let vol = row[colMap.volume];
-                if (typeof vol === 'string') vol = parseFloat(vol.replace(/[^\d.,-]/g, '').replace(',','.'));
-                
-                // Normaliza o texto do nível para casar com a config
-                let levelRaw = row[colMap.level] ? String(row[colMap.level]).toUpperCase().trim() : 'OUTROS';
-                if(levelRaw === 'CRITICO') levelRaw = 'CRÍTICO';
-                if(levelRaw === 'MEDIO') levelRaw = 'MÉDIO';
+            // 3. Busca Nível (Risco/Alerta)
+            columns.forEach((col, i) => {
+                if (i === map.volume || i === map.name) return; // Pula já usados
+                const txt = col.label.toLowerCase();
+                if (txt.includes('nivel') || txt.includes('alerta') || txt.includes('risco')) {
+                    map.level = i;
+                }
+            });
+
+            // Fallback se não achou (Para Sample Data funcionar 100%):
+            // Sample Data: 0=Nivel, 1=Nome, 2=Qtd
+            if (map.level === -1 && columns[0].label.includes('Nível')) map.level = 0;
+            if (map.name === -1) map.name = 1;
+            if (map.volume === -1) map.volume = 2;
+            if (map.level === -1) map.level = 0; // Último recurso
+
+            return rows.map((row, index) => {
+                // Volume
+                let vol = row[map.volume];
+                if (vol === null || vol === undefined) vol = 0;
+                else if (typeof vol === 'string') vol = parseFloat(vol.replace(/\./g, '').replace(',', '.'));
+                if (isNaN(vol)) vol = 0;
+
+                // Nível
+                let rawLvl = row[map.level] ? String(row[map.level]).toUpperCase().trim() : 'OUTROS';
+                if (rawLvl === 'CRITICO') rawLvl = 'CRÍTICO';
+                if (rawLvl === 'MEDIO' || rawLvl === 'MÉDIO') rawLvl = 'MODERADO';
 
                 return {
-                    name: row[colMap.name] ? String(row[colMap.name]) : '(Sem Nome)',
-                    level: levelRaw,
-                    volume: !isNaN(vol) ? vol : 0,
-                    raw: row
+                    name: row[map.name] || '(Sem Nome)',
+                    level: rawLvl,
+                    volume: vol,
+                    raw: row,
+                    origIndex: index
                 };
-            }).filter(item => item.level !== 'NULL');
+            }).filter(d => d.level !== 'NULL');
         }
 
-        // --- 5. Renderização ---
-        function renderDashboard() {
+        function renderDashboard(data) {
             const container = document.getElementById('kanbanBoard');
             container.innerHTML = '';
 
             const groups = {};
             levelsOrder.forEach(l => groups[l] = []);
 
-            state.mappedData.forEach(item => {
-                let key = item.level;
-                // Se o dado vier com nome diferente dos 5 esperados, joga em "BAIXO" ou cria nova?
-                // Vamos agrupar desconhecidos em "BAIXO" ou ignorar se preferir estrito.
-                // Aqui vou tentar encaixar, se não der, joga no final.
-                if (!groups[key] && !levelsOrder.includes(key)) {
-                   // key = 'BAIXO'; // Descomente para forçar tudo não mapeado para Baixo
-                   groups[key] = []; // Cria coluna nova se necessário
-                   if (!levelsOrder.includes(key)) levelsOrder.push(key);
-                }
-                groups[key].push(item);
+            data.forEach(item => {
+                if (groups[item.level]) groups[item.level].push(item);
+                // Se o nível não bater com nada (ex: "NORMAL"), ignoramos por enquanto
             });
 
-            levelsOrder.forEach(levelKey => {
-                const items = groups[levelKey] || [];
-                
-                // Ordenação fixa: Maior volume primeiro
+            levelsOrder.forEach(lvl => {
+                const items = groups[lvl];
                 items.sort((a, b) => b.volume - a.volume);
-
-                const columnHTML = createColumnHTML(levelKey, items);
-                container.appendChild(columnHTML);
+                container.appendChild(createColumn(lvl, items));
             });
         }
 
-        function createColumnHTML(levelKey, items) {
-            // Se a chave não existir no config (ex: "OUTROS"), usa DEFAULT
-            let config = levelConfig[levelKey];
-            if (!config) {
-                // Tenta achar alias
-                if(levelKey === 'CRITICO') config = levelConfig['CRÍTICO'];
-                else if(levelKey === 'MEDIO') config = levelConfig['MÉDIO'];
-                else config = levelConfig['DEFAULT'];
-            }
-
-            // Usa ícone padrão se não tiver específico
-            const iconSvg = config.icon || levelConfig[levelKey === 'CRÍTICO' ? 'CRÍTICO' : 'DEFAULT'].icon;
-
-            const colDiv = document.createElement('div');
-            colDiv.className = `kanban-column ${config.theme}`;
+        function createColumn(level, items) {
+            const conf = levelConfig[level] || levelConfig['DEFAULT'];
+            const col = document.createElement('div');
+            col.className = `kanban-column ${conf.theme}`;
             
-            // Filtro visual ao clicar no badge
-            if (state.filterLevel && state.filterLevel !== levelKey) {
-                colDiv.classList.add('dimmed');
-            }
+            const iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${conf.icon}</svg>`;
 
-            const header = document.createElement('div');
-            header.className = 'column-header';
-            header.innerHTML = `
-                <div class="title-wrapper">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        ${iconSvg}
-                    </svg>
-                    <span>${levelKey}</span>
+            col.innerHTML = `
+                <div class="column-header">
+                    <div class="title-wrapper">${iconSvg} <span>${level}</span></div>
+                    <div class="badge-count">${items.length}</div>
                 </div>
-                <div class="badge-count ${state.filterLevel === levelKey ? 'active' : ''}" 
-                     onclick="toggleLevelFilter('${levelKey}')">
-                    ${items.length}
+                <div class="column-body">
+                    ${items.length === 0 ? '<div style="text-align:center;color:#ccc;margin-top:20px;">—</div>' : ''}
                 </div>
             `;
 
-            const body = document.createElement('div');
-            body.className = 'column-body';
+            const body = col.querySelector('.column-body');
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'alert-card';
+                card.onclick = () => openDetails(item.origIndex);
+                card.innerHTML = `
+                    <div class="card-title" title="${item.name}">${item.name}</div>
+                    <div class="card-metric">Volume: <span class="metric-value">${new Intl.NumberFormat('pt-BR').format(item.volume)}</span></div>
+                `;
+                body.appendChild(card);
+            });
 
-            if (items.length === 0) {
-                body.innerHTML = `<div style="text-align:center; color:#eee; font-size:2rem; margin-top:20px;">•</div>`;
-            } else {
-                const maxRender = 150; // Performance
-                items.slice(0, maxRender).forEach(item => {
-                    const card = document.createElement('div');
-                    card.className = 'alert-card';
-                    card.title = `${item.name}\nVolume: ${formatNumber(item.volume)}`;
-                    card.innerHTML = `
-                        <div class="card-title">${item.name}</div>
-                        <div class="card-metric">
-                            Volume: <span class="metric-value">${formatNumber(item.volume)}</span>
-                        </div>
-                    `;
-                    card.onclick = () => openDetails(item);
-                    body.appendChild(card);
-                });
-            }
-
-            colDiv.appendChild(header);
-            colDiv.appendChild(body);
-            return colDiv;
+            return col;
         }
 
-        // --- 6. Interações ---
-        function toggleLevelFilter(level) {
-            state.filterLevel = (state.filterLevel === level) ? null : level;
-            renderDashboard();
-        }
+        function openDetails(origIndex) {
+            const itemRaw = state.rawData[origIndex];
+            // Processa apenas este item para exibição correta
+            const dummyCols = state.columns; 
+            // Precisamos dos nomes processados, mas podemos pegar direto do raw para mostrar tudo
+            
+            const processedItem = processData(state.columns, [itemRaw])[0];
 
-        function formatNumber(num) {
-            return new Intl.NumberFormat('pt-BR').format(num);
-        }
-
-        function openDetails(item) {
-            const modal = document.getElementById('detailsModal');
-            const content = document.getElementById('modalContent');
+            const modalContent = document.getElementById('modalContent');
             let html = `
-                <div class="panel-row"><span class="panel-label">Variável:</span><span>${item.name}</span></div>
-                <div class="panel-row"><span class="panel-label">Nível:</span><strong>${item.level}</strong></div>
-                <div class="panel-row"><span class="panel-label">Volume:</span><strong>${formatNumber(item.volume)}</strong></div>
-                <hr style="margin:15px 0; border:0; border-top:1px solid #eee;">
-                <div style="font-size:0.8rem; color:#666; word-break:break-all;">
+                <p><strong>Variável:</strong> ${processedItem.name}</p>
+                <p><strong>Nível:</strong> ${processedItem.level}</p>
+                <p><strong>Volume:</strong> ${new Intl.NumberFormat('pt-BR').format(processedItem.volume)}</p>
+                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+                <div style="background:#f9f9f9; padding:10px; border-radius:4px; color:#555;">
             `;
-            state.columns.forEach((col, idx) => {
-                html += `<div><strong>${col.label}:</strong> ${item.raw[idx]}</div>`;
+            state.columns.forEach((col, i) => {
+                html += `<div><strong>${col.label}:</strong> ${itemRaw[i]}</div>`;
             });
             html += `</div>`;
-            content.innerHTML = html;
-            modal.classList.add('open');
+            modalContent.innerHTML = html;
+            document.getElementById('detailsModal').classList.add('open');
         }
         function closeModal() { document.getElementById('detailsModal').classList.remove('open'); }
 
-        // --- 7. SAMPLE DATA (Atualizado para os 5 Níveis) ---
-        const SAMPLE_DATA = {
-            columns: [
-                { label: "NOME_VARIAVEL", type: "string" },
-                { label: "NIVEL_ALERTA", type: "string" },
-                { label: "VOLUME", type: "number" }
-            ],
-            data: [
-                ["CPF_PENDENTE", "CRÍTICO", 5200],
-                ["ERRO_INTEGRACAO", "CRÍTICO", 3100],
-                ["TIMEOUT_API", "ALTO", 15000],
-                ["LATENCIA_DB", "ALTO", 12500],
-                ["USO_DISCO_80", "MÉDIO", 25000],
-                ["QUEUE_SIZE", "MÉDIO", 21000],
-                ["LOGIN_SUCESSO", "NORMAL", 450000],
-                ["TRANSACAO_OK", "NORMAL", 320000],
-                ["LOGS_DEBUG", "BAIXO", 12000],
-                ["CACHE_HIT", "BAIXO", 8500],
-                ["OLD_BACKUP", "BAIXO", 5000]
-            ]
-        };
-
-        // --- 8. Inicialização ---
+        // Setup
         if (window.addEventListener) {
-            if (window.va && window.va.messagingUtil) {
-                va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
-            } else {
-                console.log("Modo Standalone: Carregando dados de exemplo 5 níveis...");
-                setTimeout(() => onDataReceived(SAMPLE_DATA), 500);
-            }
+            window.addEventListener("message", function(event) {
+                if (event.data && event.data.hasOwnProperty("data")) onDataReceived(event.data);
+            }, false);
         }
+        if (window.va && window.va.messagingUtil) {
+            va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
+        }
+
+        // Trigger Fallback
+        setTimeout(() => {
+            if (!isLoaded) {
+                console.log("Fallback acionado (Timeout).");
+                onDataReceived(SAMPLE_DATA);
+            }
+        }, 800);
+
     </script>
 </body>
 </html>
