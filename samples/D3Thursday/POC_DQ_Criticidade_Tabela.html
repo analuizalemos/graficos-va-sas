@@ -12,25 +12,24 @@
 
     <style>
         :root {
-            /* 1. CRÍTICO (Vinho/Vermelho Escuro) */
-            --color-critical: #8B0000; 
-            --bg-critical: #FFF0F0;
+            /* --- CORES --- */
+            --color-critical: #8B0000; --bg-critical: #FFF0F0;
+            --color-high: #DC143C; --bg-high: #FFF5F5;
+            --color-medium: #FF8C00; --bg-medium: #FFF8E1; /* Médio/Moderado */
             
-            /* 2. ALTO (Vermelho Vivo) */
-            --color-high: #DC143C;
-            --bg-high: #FFF5F5;
-
-            /* 3. MODERADO (Laranja/Âmbar) */
-            --color-moderate: #FF8C00; 
-            --bg-moderate: #FFF8E1;
-
-            /* 4. BAIXO (Amarelo/Dourado) */
-            --color-low: #DAA520; 
-            --bg-low: #FFFFF0;
-
+            /* INVERTIDO: Normal agora é Amarelo/Dourado */
+            --color-normal: #DAA520; --bg-normal: #FFFFF0;
+            
+            /* INVERTIDO: Baixo agora é Verde */
+            --color-low: #28a745; --bg-low: #f0fff4;
+            
+            /* --- UI TOKENS --- */
             --bg-body: #fdfdfd;
             --text-main: #333;
-            --radius-card: 6px;
+            --radius-card: 8px;
+            --scrollbar-width: 6px;
+            --scrollbar-thumb: #ccc;
+            --scrollbar-thumb-hover: #999;
         }
 
         * { box-sizing: border-box; }
@@ -47,21 +46,39 @@
             overflow: hidden; 
         }
 
-        /* Container Grid - MODIFICADO PARA FORÇAR LADO A LADO */
+        /* --- CONTAINER PRINCIPAL (FLEX) --- */
+        /* Mudado para Flex para suportar número variável de colunas (1 a 5) lado a lado */
         .kanban-container {
-            display: grid;
-            /* Garante 4 colunas com largura mínima de 220px cada */
-            grid-template-columns: repeat(4, minmax(220px, 1fr));
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap; /* Garante lado a lado */
             gap: 16px;
             flex: 1;
-            overflow-y: hidden; /* Scroll vertical interno das colunas */
-            overflow-x: auto;   /* Scroll horizontal apenas se necessário */
+            
+            /* Scroll Horizontal se necessário */
+            overflow-x: auto; 
+            overflow-y: hidden; 
+            
             min-height: 0;
-            padding-top: 10px;
-            padding-bottom: 5px; /* Espaço para scrollbar horizontal se aparecer */
+            padding-top: 5px;
+            padding-bottom: 10px;
+            
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* Coluna */
+        /* --- SCROLLBAR CUSTOMIZADA --- */
+        ::-webkit-scrollbar { width: var(--scrollbar-width); height: var(--scrollbar-width); }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background-color: var(--scrollbar-thumb);
+            border-radius: 10px;
+            border: 2px solid transparent; 
+            background-clip: content-box;
+        }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+
+        /* --- COLUNA --- */
         .kanban-column {
             background: #fff;
             border: 1px solid #eee;
@@ -69,80 +86,126 @@
             display: flex;
             flex-direction: column;
             height: 100%;
-            min-width: 0; /* Previne overflow flexbox */
+            
+            /* Largura Flexível */
+            min-width: 260px; /* Largura mínima confortável */
+            flex: 1; /* Cresce para ocupar espaço se houver poucas colunas */
+            
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .kanban-column:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
         }
 
-        /* Header */
+        /* Header da Coluna */
         .column-header {
-            padding: 12px 16px;
+            padding: 14px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
+            border-bottom: 1px solid #f0f0f0;
             font-weight: 700;
             font-size: 0.9rem;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
             border-radius: 8px 8px 0 0;
-            white-space: nowrap; /* Título não quebra linha */
+            white-space: nowrap;
+            user-select: none; 
         }
 
-        .title-wrapper { display: flex; align-items: center; gap: 8px; }
+        .title-wrapper { display: flex; align-items: center; gap: 10px; }
 
         .badge-count {
-            background: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.9);
             border-radius: 12px;
-            padding: 2px 10px;
-            font-size: 0.8rem;
-            font-weight: bold;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            font-weight: 800;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
-        /* Body */
+        /* Corpo da Coluna */
         .column-body {
             padding: 12px;
             overflow-y: auto;
+            overflow-x: hidden;
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
+            overscroll-behavior: contain; 
         }
 
-        /* Custom Scrollbar para ficar mais elegante */
-        .column-body::-webkit-scrollbar { width: 6px; }
-        .column-body::-webkit-scrollbar-track { background: transparent; }
-        .column-body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-        .kanban-container::-webkit-scrollbar { height: 8px; }
-        .kanban-container::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
-
-        /* Card */
+        /* --- CARD --- */
         .alert-card {
             background: white;
-            padding: 12px 16px;
+            padding: 14px 16px;
             border-radius: var(--radius-card);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            border-left: 5px solid transparent; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #f0f0f0;
+            border-left: 4px solid transparent; 
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
         }
+        
         .alert-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 12px rgba(0,0,0,0.1);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+            z-index: 2; 
         }
+        
+        .alert-card:active { transform: scale(0.98); }
 
         .card-title {
-            font-size: 0.85rem;
-            font-weight: 700;
+            font-size: 0.9rem;
+            font-weight: 600;
             margin-bottom: 6px;
-            color: #333;
-            /* Quebra de linha inteligente para nomes longos limpos */
+            color: #2c3e50;
             word-break: break-word; 
-            line-height: 1.2;
+            line-height: 1.4;
         }
 
-        .card-metric { font-size: 0.8rem; color: #777; margin-top: 4px; }
-        .metric-value { color: #333; font-weight: 500; margin-left: 4px; }
+        .card-metric { 
+            font-size: 0.8rem; 
+            color: #7f8c8d; 
+            margin-top: 8px; 
+            display: flex;
+            align-items: center;
+        }
+        
+        .metric-value { 
+            color: #2c3e50; 
+            font-weight: 700; 
+            margin-left: auto; 
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
 
-        /* Temas */
+        /* --- BOTÃO VER MAIS --- */
+        .expand-control { 
+            text-align: center; 
+            margin-top: 5px; 
+            padding-top: 10px;
+            border-top: 1px dashed #eee;
+        }
+        .btn-expand { 
+            background: transparent; 
+            border: 1px solid #e0e0e0; 
+            color: #1976D2; 
+            cursor: pointer; 
+            font-size: 0.8rem; 
+            font-weight: 600; 
+            padding: 6px 16px;
+            border-radius: 20px;
+            transition: all 0.2s;
+        }
+        .btn-expand:hover { background-color: #E3F2FD; border-color: #1976D2; }
+
+        /* --- TEMAS (5 Níveis) --- */
         .theme-critico .column-header { background-color: var(--bg-critical); color: var(--color-critical); }
         .theme-critico .alert-card { border-left-color: var(--color-critical); }
         .theme-critico .badge-count { color: var(--color-critical); }
@@ -151,50 +214,70 @@
         .theme-alto .alert-card { border-left-color: var(--color-high); }
         .theme-alto .badge-count { color: var(--color-high); }
 
-        .theme-moderado .column-header { background-color: var(--bg-moderate); color: var(--color-moderate); }
-        .theme-moderado .alert-card { border-left-color: var(--color-moderate); }
-        .theme-moderado .badge-count { color: var(--color-moderate); }
+        .theme-medio .column-header { background-color: var(--bg-medium); color: var(--color-medium); }
+        .theme-medio .alert-card { border-left-color: var(--color-medium); }
+        .theme-medio .badge-count { color: var(--color-medium); }
+
+        .theme-normal .column-header { background-color: var(--bg-normal); color: var(--color-normal); }
+        .theme-normal .alert-card { border-left-color: var(--color-normal); }
+        .theme-normal .badge-count { color: var(--color-normal); }
 
         .theme-baixo .column-header { background-color: var(--bg-low); color: var(--color-low); }
         .theme-baixo .alert-card { border-left-color: var(--color-low); }
         .theme-baixo .badge-count { color: var(--color-low); }
 
-        .theme-default .column-header { background-color: var(--bg-default); color: var(--color-default); }
-        .theme-default .alert-card { border-left-color: var(--color-default); }
+        .theme-default .column-header { background-color: #f8f9fa; color: #6c757d; }
+        .theme-default .alert-card { border-left-color: #6c757d; }
 
-        /* Modal */
+        /* --- MODAL DETALHES --- */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.4);
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(2px);
             display: none;
             justify-content: flex-end;
-            z-index: 1000;
+            z-index: 2000;
         }
         .modal-overlay.open { display: flex; }
+        
         .slide-panel {
-            width: 400px;
-            max-width: 90%;
+            width: 450px;
+            max-width: 90vw;
             background: white;
             height: 100%;
-            padding: 24px;
-            box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+            padding: 30px;
+            box-shadow: -10px 0 25px rgba(0,0,0,0.15);
             transform: translateX(100%);
-            transition: transform 0.3s ease-out;
+            transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
             display: flex;
             flex-direction: column;
+            overflow-y: auto;
         }
         .modal-overlay.open .slide-panel { transform: translateX(0); }
-        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999; float: right; }
         
+        .close-btn { 
+            background: #f1f1f1; 
+            border: none; 
+            width: 32px; height: 32px; 
+            border-radius: 50%; 
+            cursor: pointer; 
+            color: #555; 
+            display: flex; align-items: center; justify-content: center;
+            float: right; 
+            transition: background 0.2s;
+        }
+        .close-btn:hover { background: #e0e0e0; color: #000; }
+
         #statusMsg {
             grid-column: 1/-1;
+            width: 100%;
             text-align: center;
             margin-top: 50px;
             color: #888;
             font-size: 0.9rem;
         }
-        .error { color: red; font-weight: bold; }
+        .error { color: #d32f2f; font-weight: bold; background: #ffebee; padding: 10px; border-radius: 4px; display: inline-block; }
     </style>
 </head>
 <body>
@@ -209,14 +292,16 @@
     <!-- Modal Detalhes -->
     <div class="modal-overlay" id="detailsModal">
         <div class="slide-panel">
-            <div style="margin-bottom:10px;"><button class="close-btn" onclick="closeModal()">&times;</button></div>
-            <h2 style="margin:0; border-bottom:1px solid #eee; padding-bottom:10px; font-size:1.2rem;">Detalhes</h2>
-            <div id="modalContent" style="margin-top:20px; font-size:0.9rem; line-height:1.5;"></div>
+            <div style="margin-bottom:20px;"><button class="close-btn" onclick="closeModal()">&times;</button></div>
+            <h2 style="margin:0 0 10px 0; color:#333; font-size:1.4rem;">Detalhes da Variável</h2>
+            <div id="modalContent" style="margin-top:20px; font-size:0.95rem; line-height:1.6; color:#444;"></div>
         </div>
     </div>
 
     <script>
-        // --- 1. SAMPLE DATA ---
+        const MAX_VISIBLE_ITEMS = 10; 
+
+        // --- 1. SAMPLE DATA (Atualizado com todos os 5 níveis) ---
         const SAMPLE_DATA = {
             columns: [
                 { label: "Nível do alerta", type: "string" },
@@ -228,18 +313,30 @@
                 ["Alto", "NAL_DOMIN_TP_LOCALIZACAO_DIFEREN", 295608],
                 ["Baixo", "NAL_COMP_IN_AGUA_REDE_PUBLICA", 268],
                 ["Critico", "NAL_DOMIN_DIF_CO_MUNICIPIO", 22],
-                ["Medio", "NAL_COMP_VAR_QT_EQUIP_DVD", 75]
+                ["Medio", "NAL_COMP_VAR_QT_EQUIP_DVD", 75],
+                ["Normal", "NAL_LOGIN_SUCESSO_MES", 500000], /* Novo dado Normal */
+                ["Normal", "NAL_TRANSACAO_OK", 450000],
+                ["Alto", "NAL_VARIAVEL_TESTE_6", 50000],
+                ["Alto", "NAL_VARIAVEL_TESTE_7", 40000],
+                ["Alto", "NAL_VARIAVEL_TESTE_8", 30000],
+                ["Alto", "NAL_VARIAVEL_TESTE_9", 20000],
+                ["Alto", "NAL_VARIAVEL_TESTE_10", 10000],
+                ["Alto", "NAL_VARIAVEL_TESTE_11", 5000],
+                ["Alto", "NAL_VARIAVEL_TESTE_12", 2000]
             ]
         };
 
         const levelConfig = {
             'CRÍTICO': { theme: 'theme-critico', icon: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>' }, 
             'ALTO': { theme: 'theme-alto', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>' },
-            'MODERADO': { theme: 'theme-moderado', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>' },
-            'BAIXO': { theme: 'theme-baixo', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' },
+            'MÉDIO': { theme: 'theme-medio', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>' },
+            'NORMAL': { theme: 'theme-normal', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' },
+            'BAIXO': { theme: 'theme-baixo', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line>' },
             'DEFAULT': { theme: 'theme-default', icon: '' }
         };
-        const levelsOrder = ['CRÍTICO', 'ALTO', 'MODERADO', 'NORMAL'];
+        
+        // Ordem dos 5 Níveis
+        const levelsOrder = ['CRÍTICO', 'ALTO', 'MÉDIO', 'NORMAL', 'BAIXO'];
 
         let state = { columns: [], rawData: [] };
         let isLoaded = false;
@@ -251,23 +348,22 @@
 
                 state.columns = message.columns;
                 state.rawData = message.data;
-                
                 const processed = processData(message.columns, message.data);
                 renderDashboard(processed);
                 isLoaded = true;
             } catch (err) {
                 console.error(err);
-                document.getElementById('statusMsg').innerHTML = `<div class="error">Erro:${err.message}</div>`;
+                document.getElementById('statusMsg').innerHTML = `<div class="error">Erro no processamento: ${err.message}</div>`;
             }
         }
 
         function processData(columns, rows) {
             let map = { name: -1, level: -1, volume: -1 };
 
-            // 1. Mapeamento
+            // Detecção de Colunas
             columns.forEach((col, i) => {
                 const txt = col.label.toLowerCase();
-                if (txt.includes('qtd') || txt.includes('volume') || txt.includes('quant')) map.volume = i; 
+                if (txt.includes('qtd') || txt.includes('volume') || txt.includes('quant') || txt.includes('total')) map.volume = i; 
             });
             columns.forEach((col, i) => {
                 if (i === map.volume) return;
@@ -287,25 +383,22 @@
             if (map.level === -1) map.level = 0;
 
             return rows.map((row, index) => {
-                // Volume
                 let vol = row[map.volume];
                 if (vol === null || vol === undefined) vol = 0;
                 else if (typeof vol === 'string') vol = parseFloat(vol.replace(/\./g, '').replace(',', '.'));
                 if (isNaN(vol)) vol = 0;
 
-                // Nível
+                // Normalização dos 5 Níveis
                 let rawLvl = row[map.level] ? String(row[map.level]).toUpperCase().trim() : 'OUTROS';
                 if (rawLvl === 'CRITICO') rawLvl = 'CRÍTICO';
-                if (rawLvl === 'MEDIO' || rawLvl === 'MÉDIO') rawLvl = 'MÉDIO';
+                if (rawLvl === 'MEDIO' || rawLvl === 'MÉDIO') rawLvl = 'MÉDIO'; // Unifica para MÉDIO
 
-                // --- LIMPEZA DE NOME (SOLICITAÇÃO USUÁRIO) ---
                 let rawName = row[map.name] || '(Sem Nome)';
-                // Remove os prefixos na ordem (do mais longo para o mais curto para evitar erros)
                 let cleanName = rawName.replace(/^(NAL_DOMIN_DIF_|NAL_DOMIN_|NAL_COMP_VAR_|NAL_COMP_|NAL_)/, '');
 
                 return {
-                    name: cleanName, // Nome limpo
-                    fullName: rawName, // Nome original (para detalhes)
+                    name: cleanName,
+                    fullName: rawName,
                     level: rawLvl,
                     volume: vol,
                     raw: row,
@@ -325,10 +418,20 @@
                 if (groups[item.level]) groups[item.level].push(item);
             });
 
+            // Verifica se está tudo vazio
+            const hasData = Object.values(groups).some(g => g.length > 0);
+            if(!hasData) {
+                container.innerHTML = '<div style="width:100%; text-align:center; color:#999; margin-top:50px;">Nenhum alerta encontrado.</div>';
+                return;
+            }
+
             levelsOrder.forEach(lvl => {
                 const items = groups[lvl];
-                items.sort((a, b) => b.volume - a.volume);
-                container.appendChild(createColumn(lvl, items));
+                // LÓGICA: Se não tiver itens, pula a coluna (não renderiza)
+                if (items && items.length > 0) {
+                    items.sort((a, b) => b.volume - a.volume);
+                    container.appendChild(createColumn(lvl, items));
+                }
             });
         }
 
@@ -344,22 +447,52 @@
                     <div class="title-wrapper">${iconSvg} <span>${level}</span></div>
                     <div class="badge-count">${items.length}</div>
                 </div>
-                <div class="column-body">
-                    ${items.length === 0 ? '<div style="text-align:center;color:#ccc;margin-top:20px;">—</div>' : ''}
-                </div>
+                <div class="column-body"></div>
             `;
 
             const body = col.querySelector('.column-body');
-            items.forEach(item => {
+            
+            items.forEach((item, idx) => {
                 const card = document.createElement('div');
                 card.className = 'alert-card';
+                
+                if (idx >= MAX_VISIBLE_ITEMS) {
+                    card.style.display = 'none';
+                    card.classList.add('hidden-card');
+                }
+
                 card.onclick = () => openDetails(item.origIndex);
+                // Alterado "Volume" para "Total"
                 card.innerHTML = `
                     <div class="card-title" title="${item.fullName}">${item.name}</div>
-                    <div class="card-metric">Volume: <span class="metric-value">${new Intl.NumberFormat('pt-BR').format(item.volume)}</span></div>
+                    <div class="card-metric">
+                        Total 
+                        <span class="metric-value">${new Intl.NumberFormat('pt-BR').format(item.volume)}</span>
+                    </div>
                 `;
                 body.appendChild(card);
             });
+
+            if (items.length > MAX_VISIBLE_ITEMS) {
+                const hiddenCount = items.length - MAX_VISIBLE_ITEMS;
+                const btnDiv = document.createElement('div');
+                btnDiv.className = 'expand-control';
+                
+                const btn = document.createElement('button');
+                btn.className = 'btn-expand';
+                btn.innerText = `Ver mais (${hiddenCount})`;
+                
+                btn.onclick = function(e) {
+                    e.stopPropagation();
+                    const isExpanding = btn.innerText.includes('Ver mais');
+                    const hiddenCards = body.querySelectorAll('.hidden-card');
+                    hiddenCards.forEach(c => c.style.display = isExpanding ? 'block' : 'none');
+                    btn.innerText = isExpanding ? 'Recolher' : `Ver mais (${hiddenCount})`;
+                };
+                
+                btnDiv.appendChild(btn);
+                body.appendChild(btnDiv);
+            }
 
             return col;
         }
@@ -367,18 +500,33 @@
         function openDetails(origIndex) {
             const itemRaw = state.rawData[origIndex];
             const processedItem = processData(state.columns, [itemRaw])[0];
-
             const modalContent = document.getElementById('modalContent');
+            
             let html = `
-                <p><strong>Variável (Limpa):</strong> ${processedItem.name}</p>
-                <p><strong>Nome Original:</strong> <span style="color:#666">${processedItem.fullName}</span></p>
-                <p><strong>Nível:</strong> ${processedItem.level}</p>
-                <p><strong>Volume:</strong> ${new Intl.NumberFormat('pt-BR').format(processedItem.volume)}</p>
-                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
-                <div style="background:#f9f9f9; padding:10px; border-radius:4px; color:#555;">
+                <div style="margin-bottom:15px;">
+                    <strong style="display:block; font-size:0.85rem; color:#888; text-transform:uppercase;">Variável (Limpa)</strong>
+                    <span style="font-size:1.1rem; font-weight:600; color:#333;">${processedItem.name}</span>
+                </div>
+                <div style="margin-bottom:15px;">
+                     <strong style="display:block; font-size:0.85rem; color:#888; text-transform:uppercase;">Nome Original</strong>
+                     <span style="font-family:monospace; background:#f4f4f4; padding:2px 6px; border-radius:4px;">${processedItem.fullName}</span>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px;">
+                    <div>
+                        <strong style="display:block; font-size:0.85rem; color:#888; text-transform:uppercase;">Nível</strong>
+                        <span style="font-weight:bold;">${processedItem.level}</span>
+                    </div>
+                    <div>
+                        <strong style="display:block; font-size:0.85rem; color:#888; text-transform:uppercase;">Total</strong>
+                        <span style="font-weight:bold; color:#1976D2;">${new Intl.NumberFormat('pt-BR').format(processedItem.volume)}</span>
+                    </div>
+                </div>
+                <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
+                <h4 style="margin:0 0 10px 0; color:#555;">Dados Completos</h4>
+                <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee;">
             `;
             state.columns.forEach((col, i) => {
-                html += `<div><strong>${col.label}:</strong> ${itemRaw[i]}</div>`;
+                html += `<div style="margin-bottom:5px; font-size:0.9rem;"><strong>${col.label}:</strong> ${itemRaw[i]}</div>`;
             });
             html += `</div>`;
             modalContent.innerHTML = html;
@@ -386,7 +534,6 @@
         }
         function closeModal() { document.getElementById('detailsModal').classList.remove('open'); }
 
-        // Setup
         if (window.addEventListener) {
             window.addEventListener("message", function(event) {
                 if (event.data && event.data.hasOwnProperty("data")) onDataReceived(event.data);
@@ -396,10 +543,9 @@
             va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
         }
 
-        // Trigger Fallback
         setTimeout(() => {
             if (!isLoaded) {
-                console.log("Fallback acionado (Timeout).");
+                console.log("Fallback acionado.");
                 onDataReceived(SAMPLE_DATA);
             }
         }, 800);
