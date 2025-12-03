@@ -188,7 +188,12 @@
         "In_Quadra_Esportes": "Alteração: Quadra de Esportes",
         "In_Refeitorio": "Alteração: Refeitório",
         "In_Saneamento_Basico": "Alteração: Saneamento Básico",
-        // Adicione outros códigos conforme necessário
+        "In_Despensa": "Alteração: Despensa",
+        "In_Auditorio": "Alteração: Auditório",
+        "In_Patio_Coberto": "Alteração: Pátio Coberto",
+        "In_Patio_Descoberto": "Alteração: Pátio Descoberto",
+        "In_Area_Verde": "Alteração: Área Verde",
+        "In_Lavanderia": "Alteração: Lavanderia"
     };
 
     const LEVELS_CONFIG = {
@@ -207,38 +212,41 @@
     const SAMPLE_DATA_WIDE = {
         columns: [
             { label: "ID Escola", type: "string" },
-            { label: "Nível Severidade | Check_Negocio", type: "number" },
+            { label: "Nível Severidade | Check_Negocio (1)", type: "number" },
             { label: "Nível Severidade | In_Banheiro", type: "number" },
-            { label: "Nível Severidade | In_Internet", type: "number" },
+            { label: "Nível Severidade | In_Internet (2)", type: "number" },
             { label: "Nível Severidade | In_Agua_Rede_Publica", type: "number" }
         ],
-        // Simulando 10 escolas
         data: [
-            ["E001", 5, 0, 0, 4], // Escola crítica em Check_Negocio
-            ["E002", 0, 3, 0, 0], // Escola moderada em Banheiro
-            ["E003", 0, 0, 4, 0], // Escola Alta em Internet
-            ["E004", 5, 5, 0, 0], // Crítica em dois itens
-            ["E005", 0, 0, 0, 0], // Sem problemas
-            ["E006", 0, 2, 0, 1],
-            ["E007", 0, 0, 0, 0],
-            ["E008", 4, 0, 0, 0],
-            ["E009", 0, 0, 0, 4],
-            ["E010", 0, 0, 0, 0]
+            ["E001", 5, 0, 0, 4], 
+            ["E002", 0, 3, 0, 0], 
+            ["E003", 0, 0, 4, 0], 
+            ["E004", 5, 5, 0, 0], 
+            ["E005", 0, 0, 0, 0],
+            ["E006", 0, 2, 0, 1]
         ]
     };
 
     const formatNumber = (num) => new Intl.NumberFormat('pt-BR').format(num);
 
     /**
-     * Extrai o código "Check_Negocio" de strings como "Nível... | Check_Negocio"
+     * LIMPEZA DE LABEL ROBUSTA
+     * Remove sufixos como (1), (23) e prefixos com pipe |
      */
     function extractRuleCode(rawLabel) {
         if (!rawLabel) return "";
-        if (rawLabel.includes('|')) {
-            const parts = rawLabel.split('|');
-            return parts[parts.length - 1].trim();
+        
+        // 1. Remove sufixos numéricos do SAS, ex: "Nome (1)" -> "Nome"
+        // Regex: espaço opcional \s* + parêntese aberto \( + dígitos \d+ + parêntese fechado \) + fim da linha $
+        let clean = rawLabel.replace(/\s*\(\d+\)$/, '');
+
+        // 2. Remove o prefixo com pipe se existir
+        if (clean.includes('|')) {
+            const parts = clean.split('|');
+            clean = parts[parts.length - 1].trim();
         }
-        return rawLabel.trim();
+        
+        return clean.trim();
     }
 
     /**
@@ -247,29 +255,30 @@
     function onDataReceived(message) {
         const container = document.getElementById('app-container');
         
-        // Validação básica
         if (!message || !message.data || message.data.length === 0) {
             container.innerHTML = '<div class="message-box">Nenhum dado disponível.</div>';
             return;
         }
 
-        const totalSchools = message.data.length; // Total de escolas no contexto atual
+        const totalSchools = message.data.length; 
         const columns = message.columns;
         
         // 1. Identificar quais colunas são REGRAS
-        // Critério: Ser numérica e (conter "Severidade" ou ser parte da lista conhecida)
-        // Ignorar colunas de ID, Nome da Escola, Estado, etc.
         const ruleColumnsIndices = [];
         
         columns.forEach((col, index) => {
             const label = col.label;
-            const cleanCode = extractRuleCode(label);
+            const cleanCode = extractRuleCode(label); // Agora remove (1) antes de checar
             
-            // Se for número e não for um ID óbvio, tentamos tratar como regra
-            // O ideal é que o usuário arraste SOMENTE as colunas de regras + ID se quiser
-            if (col.type === "number" || (col.type === "string" && label.toLowerCase().includes("nível"))) {
-                 // Verifica se temos descrição ou se parece um código de regra
-                 if (RULE_DESCRIPTIONS[cleanCode] || label.includes('|') || label.startsWith('In_') || label.startsWith('Check_')) {
+            // Critérios para considerar como regra:
+            // 1. É numérico
+            // 2. O código limpo existe no nosso dicionário OU o label original tem cara de regra
+            const isKnownRule = RULE_DESCRIPTIONS.hasOwnProperty(cleanCode);
+            const looksLikeRule = label.includes('|') || label.toLowerCase().includes('nível') || cleanCode.startsWith('In_') || cleanCode.startsWith('Check_');
+
+            if ((col.type === "number" || col.type === "string") && (isKnownRule || looksLikeRule)) {
+                 // Filtra colunas que claramente não são regras (ex: ID, Ano) se escaparem
+                 if (cleanCode.length > 2 && cleanCode !== "ID" && cleanCode !== "Ano") {
                      ruleColumnsIndices.push({
                          index: index,
                          code: cleanCode,
@@ -280,16 +289,15 @@
         });
 
         if (ruleColumnsIndices.length === 0) {
-            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma coluna de regra identificada. Certifique-se de arrastar as medidas numéricas das regras.</div>';
+            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma coluna de regra identificada.</div>';
             return;
         }
 
-        // 2. Agregar Dados (Varredura das Linhas)
-        // Objeto para guardar totais por regra
-        const rulesAggregated = {}; // { "Check_Negocio": { count: 0, maxLevel: 0 } }
+        // 2. Agregar Dados
+        const rulesAggregated = {}; 
 
-        // Inicializa estrutura
         ruleColumnsIndices.forEach(rc => {
+            // Garante que a chave no objeto agregado seja o código LIMPO
             rulesAggregated[rc.code] = { 
                 count: 0, 
                 maxLevel: 0,
@@ -297,18 +305,13 @@
             };
         });
 
-        // Loop principal (pode ser pesado se forem muitas linhas, mas o SAS geralmente pagina ou limita)
         message.data.forEach(row => {
             ruleColumnsIndices.forEach(rc => {
                 let val = row[rc.index];
-                
-                // Conversão segura para número
                 let severity = parseInt(val) || 0;
 
                 if (severity > 0) {
                     rulesAggregated[rc.code].count++;
-                    
-                    // Atualiza a severidade máxima encontrada para esta regra
                     if (severity > rulesAggregated[rc.code].maxLevel) {
                         rulesAggregated[rc.code].maxLevel = severity;
                     }
@@ -316,23 +319,23 @@
             });
         });
 
-        // 3. Transformar em Array para Renderização
+        // 3. Transformar em Array
         let processedData = Object.values(rulesAggregated)
-            .filter(item => item.count > 0) // Remove regras sem ocorrências (opcional, pode remover essa linha se quiser mostrar zeros)
+            .filter(item => item.count > 0)
             .map(item => {
-                // Limita severidade a 5
                 let lvl = item.maxLevel > 5 ? 5 : item.maxLevel;
+                // Busca a descrição usando o código limpo
+                let displayName = RULE_DESCRIPTIONS[item.code] || item.code;
                 
                 return {
                     code: item.code,
-                    name: RULE_DESCRIPTIONS[item.code] || item.code,
+                    name: displayName,
                     level: lvl,
                     total: item.count,
                     percent: (item.count / totalSchools) * 100
                 };
             });
 
-        // Ordenação: Maior Severidade -> Maior Volume
         processedData.sort((a, b) => {
             if (b.level !== a.level) return b.level - a.level;
             return b.total - a.total;
@@ -345,14 +348,13 @@
         container.innerHTML = ''; 
 
         if (data.length === 0) {
-             container.innerHTML = '<div class="message-box">Tudo certo! Nenhuma inconsistência encontrada nesta seleção.</div>';
+             container.innerHTML = '<div class="message-box">Tudo certo! Nenhuma inconsistência encontrada.</div>';
              return;
         }
 
         data.forEach(item => {
             const levelConfig = LEVELS_CONFIG[item.level] || LEVELS_CONFIG[0];
             
-            // Formatação Percentual
             let percentText = "0%";
             if (item.percent > 0 && item.percent < 0.1) {
                 percentText = "< 0,1%";
@@ -380,24 +382,22 @@
                     <div class="impact-info">
                         <span>Afeta</span>
                         <strong>${percentText}</strong>
-                        <span>das escolas</span>
+                        <span>das escolas com alerta</span>
                     </div>
                     <div class="total-info">
-                        Total: ${formatNumber(item.total)}
+                        Total de escolas: ${formatNumber(item.total)}
                     </div>
                 </div>
             `;
             container.appendChild(card);
         });
         
-        // Debug footer (útil para saber quantas linhas o SAS enviou)
         const footer = document.createElement('div');
         footer.className = 'debug-info';
-        footer.innerText = `Base de cálculo: ${formatNumber(totalBase)} escolas analisadas.`;
+        footer.innerText = `Base: ${formatNumber(totalBase)} escolas analisadas.`;
         container.appendChild(footer);
     }
 
-    // Listener do SAS
     if (window.addEventListener) {
         window.addEventListener("message", function(event) {
             var data = event.data;
@@ -407,7 +407,6 @@
         });
     }
 
-    // Inicialização Offline (Dev)
     window.onload = function() {
         setTimeout(() => {
             const container = document.getElementById('app-container');
