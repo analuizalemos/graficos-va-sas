@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Alertas (5 Níveis) - SAS DDC</title>
+    
+    <!-- Fontes Google -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* --- Paleta de Cores e Temas --- */
+            --bg-body: #fdfdfd;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --shadow-card: 0 2px 5px rgba(0,0,0,0.05);
+            --shadow-hover: 0 5px 12px rgba(0,0,0,0.1);
+            
+            /* 1. CRÍTICO (Vermelho Escuro) */
+            --color-critical: #a71d2a; 
+            --bg-critical: #fff0f1;
+            
+            /* 2. ALTO (Vermelho Claro / Laranja Escuro) */
+            --color-high: #dc3545;
+            --bg-high: #fff5f5;
+
+            /* 3. MÉDIO (Laranja / Âmbar) */
+            --color-medium: #fd7e14; 
+            --bg-medium: #fff8f0;
+
+            /* 4. NORMAL (Verde) */
+            --color-normal: #28a745;
+            --bg-normal: #f0fff4;
+
+            /* 5. BAIXO (Azul / Neutro) */
+            --color-low: #17a2b8;
+            --bg-low: #f0faff;
+
+            /* Default (Outros) */
+            --color-default: #6c757d;
+            --bg-default: #f8f9fa;
+
+            /* Espaçamentos */
+            --radius-card: 6px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            margin: 0;
+            padding: 10px; /* Reduzido padding para aproveitar espaço */
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+
+        /* --- Main Grid Layout --- */
+        .kanban-container {
+            display: grid;
+            /* 5 colunas no desktop */
+            grid-template-columns: repeat(5, 1fr); 
+            gap: 12px;
+            flex: 1;
+            overflow-y: hidden;
+            min-height: 0;
+            padding-top: 10px;
+        }
+
+        /* --- Column Styles --- */
+        .kanban-column {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            transition: opacity 0.3s;
+        }
+
+        .column-header {
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .column-header .title-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge-count {
+            background: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .badge-count:hover { transform: scale(1.1); }
+        .badge-count.active { background: #333; color: #fff; }
+
+        .column-body {
+            padding: 10px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* --- Card Styles --- */
+        .alert-card {
+            background: white;
+            padding: 10px 12px;
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow-card);
+            border-left: 4px solid transparent; 
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .alert-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: #333;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-metric {
+            font-size: 0.8rem;
+            color: #777;
+        }
+
+        .metric-value {
+            color: #333;
+            font-weight: 500;
+            margin-left: 4px;
+        }
+
+        /* --- Dynamic Theme Application --- */
+        /* 1. Crítico */
+        .theme-critico .column-header { background-color: var(--bg-critical); color: var(--color-critical); }
+        .theme-critico .alert-card { border-left-color: var(--color-critical); }
+        .theme-critico .badge-count { color: var(--color-critical); }
+        
+        /* 2. Alto */
+        .theme-alto .column-header { background-color: var(--bg-high); color: var(--color-high); }
+        .theme-alto .alert-card { border-left-color: var(--color-high); }
+        .theme-alto .badge-count { color: var(--color-high); }
+
+        /* 3. Médio */
+        .theme-medio .column-header { background-color: var(--bg-medium); color: var(--color-medium); }
+        .theme-medio .alert-card { border-left-color: var(--color-medium); }
+        .theme-medio .badge-count { color: var(--color-medium); }
+
+        /* 4. Normal */
+        .theme-normal .column-header { background-color: var(--bg-normal); color: var(--color-normal); }
+        .theme-normal .alert-card { border-left-color: var(--color-normal); }
+        .theme-normal .badge-count { color: var(--color-normal); }
+
+        /* 5. Baixo */
+        .theme-baixo .column-header { background-color: var(--bg-low); color: var(--color-low); }
+        .theme-baixo .alert-card { border-left-color: var(--color-low); }
+        .theme-baixo .badge-count { color: var(--color-low); }
+
+        /* Default */
+        .theme-default .column-header { background-color: var(--bg-default); color: var(--color-default); }
+        .theme-default .alert-card { border-left-color: var(--color-default); }
+
+        /* --- Modal / Slide Panel --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            justify-content: flex-end;
+            z-index: 1000;
+        }
+        .modal-overlay.open { display: flex; }
+        
+        .slide-panel {
+            width: 350px;
+            max-width: 90%;
+            background: white;
+            height: 100%;
+            padding: 20px;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+            transform: translateX(100%);
+            transition: transform 0.3s ease-out;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-overlay.open .slide-panel { transform: translateX(0); }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999; }
+        .panel-row { margin-bottom: 10px; display: flex; justify-content: space-between; font-size: 0.9rem; }
+        .panel-label { font-weight: bold; color: #555; }
+
+        /* --- Responsividade --- */
+        @media (max-width: 1200px) {
+            .kanban-container { grid-template-columns: repeat(3, 1fr); overflow-y: auto; }
+            .kanban-column { height: auto; min-height: 300px; }
+            body { overflow-y: auto; }
+        }
+        @media (max-width: 800px) {
+            .kanban-container { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 500px) {
+            .kanban-container { grid-template-columns: 1fr; }
+        }
+
+        .kanban-column.dimmed { opacity: 0.3; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Container Principal das Colunas -->
+    <div class="kanban-container" id="kanbanBoard">
+        <!-- Colunas injetadas via JS -->
+        <div style="text-align: center; width: 100%; padding-top: 50px; color: #999;">
+            Carregando dados do SAS VA...
+        </div>
+    </div>
+
+    <!-- Modal/Slide Panel para Detalhes -->
+    <div class="modal-overlay" id="detailsModal">
+        <div class="slide-panel">
+            <div class="panel-header">
+                <h3 style="margin:0;">Detalhes</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="panel-content" id="modalContent">
+                <!-- Preenchido via JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Utilitários SAS VA (Simulados) ---
+        if (!window.va) window.va = {};
+        try {
+            // Em ambiente real, o SAS injeta os utilitários
+        } catch (e) { console.log('Ambiente local detectado.'); }
+
+        // --- 2. Estado da Aplicação ---
+        const state = {
+            rawData: [],    
+            mappedData: [], 
+            columns: [],    
+            filterLevel: null,
+            sortBy: 'volume_desc' // Padrão: maior volume primeiro
+        };
+
+        // --- Configuração dos 5 Níveis ---
+        const levelConfig = {
+            'CRÍTICO': { theme: 'theme-critico', icon: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>' },
+            'CRITICO': { theme: 'theme-critico', icon: '' }, // Alias sem acento
+            
+            'ALTO': { theme: 'theme-alto', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>' },
+            
+            'MÉDIO': { theme: 'theme-medio', icon: '<rect x="12" y="14" width="2" height="6"></rect><path d="M10 2a2 2 0 0 1 4 0v12h-4V2z"></path>' }, // Exemplo ícone termometro parcial ou similar
+            'MEDIO': { theme: 'theme-medio', icon: '' }, // Alias sem acento
+            
+            'NORMAL': { theme: 'theme-normal', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' },
+            
+            'BAIXO': { theme: 'theme-baixo', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line>' },
+            
+            'DEFAULT': { theme: 'theme-default', icon: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>' }
+        };
+
+        // Ordem fixa de exibição das 5 colunas
+        const levelsOrder = ['CRÍTICO', 'ALTO', 'MÉDIO', 'NORMAL', 'BAIXO'];
+
+        // --- 3. Integração ---
+        function onDataReceived(message) {
+            if (!message || !message.data) return;
+            state.columns = message.columns;
+            state.rawData = message.data;
+            processData(); 
+            renderDashboard(); 
+        }
+
+        // --- 4. Processamento ---
+        function processData() {
+            // Mapeamento automático de colunas
+            const colMap = { name: -1, level: -1, volume: -1 };
+            state.columns.forEach((col, index) => {
+                const label = col.label.toLowerCase();
+                if (label.includes('nome') || label.includes('var')) colMap.name = index;
+                else if (label.includes('nivel') || label.includes('risco') || label.includes('alert')) colMap.level = index;
+                else if (label.includes('vol') || label.includes('qtd') || label.includes('val')) colMap.volume = index;
+            });
+
+            // Fallback para índices 0, 1, 2 se não identificar nomes
+            if (colMap.name === -1) colMap.name = 0;
+            if (colMap.level === -1) colMap.level = 1;
+            if (colMap.volume === -1) colMap.volume = 2;
+
+            state.mappedData = state.rawData.map(row => {
+                let vol = row[colMap.volume];
+                if (typeof vol === 'string') vol = parseFloat(vol.replace(/[^\d.,-]/g, '').replace(',','.'));
+                
+                // Normaliza o texto do nível para casar com a config
+                let levelRaw = row[colMap.level] ? String(row[colMap.level]).toUpperCase().trim() : 'OUTROS';
+                if(levelRaw === 'CRITICO') levelRaw = 'CRÍTICO';
+                if(levelRaw === 'MEDIO') levelRaw = 'MÉDIO';
+
+                return {
+                    name: row[colMap.name] ? String(row[colMap.name]) : '(Sem Nome)',
+                    level: levelRaw,
+                    volume: !isNaN(vol) ? vol : 0,
+                    raw: row
+                };
+            }).filter(item => item.level !== 'NULL');
+        }
+
+        // --- 5. Renderização ---
+        function renderDashboard() {
+            const container = document.getElementById('kanbanBoard');
+            container.innerHTML = '';
+
+            const groups = {};
+            levelsOrder.forEach(l => groups[l] = []);
+
+            state.mappedData.forEach(item => {
+                let key = item.level;
+                // Se o dado vier com nome diferente dos 5 esperados, joga em "BAIXO" ou cria nova?
+                // Vamos agrupar desconhecidos em "BAIXO" ou ignorar se preferir estrito.
+                // Aqui vou tentar encaixar, se não der, joga no final.
+                if (!groups[key] && !levelsOrder.includes(key)) {
+                   // key = 'BAIXO'; // Descomente para forçar tudo não mapeado para Baixo
+                   groups[key] = []; // Cria coluna nova se necessário
+                   if (!levelsOrder.includes(key)) levelsOrder.push(key);
+                }
+                groups[key].push(item);
+            });
+
+            levelsOrder.forEach(levelKey => {
+                const items = groups[levelKey] || [];
+                
+                // Ordenação fixa: Maior volume primeiro
+                items.sort((a, b) => b.volume - a.volume);
+
+                const columnHTML = createColumnHTML(levelKey, items);
+                container.appendChild(columnHTML);
+            });
+        }
+
+        function createColumnHTML(levelKey, items) {
+            // Se a chave não existir no config (ex: "OUTROS"), usa DEFAULT
+            let config = levelConfig[levelKey];
+            if (!config) {
+                // Tenta achar alias
+                if(levelKey === 'CRITICO') config = levelConfig['CRÍTICO'];
+                else if(levelKey === 'MEDIO') config = levelConfig['MÉDIO'];
+                else config = levelConfig['DEFAULT'];
+            }
+
+            // Usa ícone padrão se não tiver específico
+            const iconSvg = config.icon || levelConfig[levelKey === 'CRÍTICO' ? 'CRÍTICO' : 'DEFAULT'].icon;
+
+            const colDiv = document.createElement('div');
+            colDiv.className = `kanban-column ${config.theme}`;
+            
+            // Filtro visual ao clicar no badge
+            if (state.filterLevel && state.filterLevel !== levelKey) {
+                colDiv.classList.add('dimmed');
+            }
+
+            const header = document.createElement('div');
+            header.className = 'column-header';
+            header.innerHTML = `
+                <div class="title-wrapper">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        ${iconSvg}
+                    </svg>
+                    <span>${levelKey}</span>
+                </div>
+                <div class="badge-count ${state.filterLevel === levelKey ? 'active' : ''}" 
+                     onclick="toggleLevelFilter('${levelKey}')">
+                    ${items.length}
+                </div>
+            `;
+
+            const body = document.createElement('div');
+            body.className = 'column-body';
+
+            if (items.length === 0) {
+                body.innerHTML = `<div style="text-align:center; color:#eee; font-size:2rem; margin-top:20px;">•</div>`;
+            } else {
+                const maxRender = 150; // Performance
+                items.slice(0, maxRender).forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'alert-card';
+                    card.title = `${item.name}\nVolume: ${formatNumber(item.volume)}`;
+                    card.innerHTML = `
+                        <div class="card-title">${item.name}</div>
+                        <div class="card-metric">
+                            Volume: <span class="metric-value">${formatNumber(item.volume)}</span>
+                        </div>
+                    `;
+                    card.onclick = () => openDetails(item);
+                    body.appendChild(card);
+                });
+            }
+
+            colDiv.appendChild(header);
+            colDiv.appendChild(body);
+            return colDiv;
+        }
+
+        // --- 6. Interações ---
+        function toggleLevelFilter(level) {
+            state.filterLevel = (state.filterLevel === level) ? null : level;
+            renderDashboard();
+        }
+
+        function formatNumber(num) {
+            return new Intl.NumberFormat('pt-BR').format(num);
+        }
+
+        function openDetails(item) {
+            const modal = document.getElementById('detailsModal');
+            const content = document.getElementById('modalContent');
+            let html = `
+                <div class="panel-row"><span class="panel-label">Variável:</span><span>${item.name}</span></div>
+                <div class="panel-row"><span class="panel-label">Nível:</span><strong>${item.level}</strong></div>
+                <div class="panel-row"><span class="panel-label">Volume:</span><strong>${formatNumber(item.volume)}</strong></div>
+                <hr style="margin:15px 0; border:0; border-top:1px solid #eee;">
+                <div style="font-size:0.8rem; color:#666; word-break:break-all;">
+            `;
+            state.columns.forEach((col, idx) => {
+                html += `<div><strong>${col.label}:</strong> ${item.raw[idx]}</div>`;
+            });
+            html += `</div>`;
+            content.innerHTML = html;
+            modal.classList.add('open');
+        }
+        function closeModal() { document.getElementById('detailsModal').classList.remove('open'); }
+
+        // --- 7. SAMPLE DATA (Atualizado para os 5 Níveis) ---
+        const SAMPLE_DATA = {
+            columns: [
+                { label: "NOME_VARIAVEL", type: "string" },
+                { label: "NIVEL_ALERTA", type: "string" },
+                { label: "VOLUME", type: "number" }
+            ],
+            data: [
+                ["CPF_PENDENTE", "CRÍTICO", 5200],
+                ["ERRO_INTEGRACAO", "CRÍTICO", 3100],
+                ["TIMEOUT_API", "ALTO", 15000],
+                ["LATENCIA_DB", "ALTO", 12500],
+                ["USO_DISCO_80", "MÉDIO", 25000],
+                ["QUEUE_SIZE", "MÉDIO", 21000],
+                ["LOGIN_SUCESSO", "NORMAL", 450000],
+                ["TRANSACAO_OK", "NORMAL", 320000],
+                ["LOGS_DEBUG", "BAIXO", 12000],
+                ["CACHE_HIT", "BAIXO", 8500],
+                ["OLD_BACKUP", "BAIXO", 5000]
+            ]
+        };
+
+        // --- 8. Inicialização ---
+        if (window.addEventListener) {
+            if (window.va && window.va.messagingUtil) {
+                va.messagingUtil.setOnDataReceivedCallback(onDataReceived);
+            } else {
+                console.log("Modo Standalone: Carregando dados de exemplo 5 níveis...");
+                setTimeout(() => onDataReceived(SAMPLE_DATA), 500);
+            }
+        }
+    </script>
+</body>
+</html>
