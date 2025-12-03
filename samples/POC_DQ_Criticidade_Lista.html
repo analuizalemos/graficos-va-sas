@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Regras - SAS VA (Busca por Palavra-Chave)</title>
+    <title>Painel de Regras - SAS VA (Descrição do Header)</title>
 
     <!-- Importando Fonte Inter (Google Fonts) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -160,38 +160,7 @@
      * CONFIGURAÇÕES
      */
     
-    // ESTRATÉGIA DE BUSCA:
-    // O código vai procurar se a coluna contém a "chave" (texto em minúsculo).
-    // Se encontrar, usa a descrição.
-    const RULE_DICTIONARY = [
-        { key: "check_negocio", label: "Inconsistência Infra: Salas Existentes vs Utilizadas" },
-        { key: "in_agua_rede_publica", label: "Alteração: Água da Rede Pública" },
-        { key: "in_almoxarifado", label: "Alteração: Almoxarifado" },
-        { key: "in_banheiro", label: "Alteração: Banheiro" },
-        { key: "in_comum_eja_fund", label: "Variação: Matrículas EJA Fundamental" },
-        { key: "in_comum_fund_ai", label: "Variação: Matrículas Fund. Anos Iniciais" },
-        { key: "in_comum_medio_medio", label: "Variação: Matrículas Ensino Médio" },
-        { key: "in_comum_prof", label: "Variação: Matrículas Ensino Profissional" },
-        { key: "in_cozinha", label: "Alteração: Cozinha" },
-        { key: "in_biblioteca", label: "Alteração: Biblioteca" },
-        { key: "in_energia_rede_publica", label: "Alteração: Energia Rede Pública" },
-        { key: "in_internet", label: "Alteração: Acesso à Internet" },
-        { key: "in_laboratorio_informatica", label: "Alteração: Lab. Informática" },
-        { key: "in_parque_infantil", label: "Alteração: Parque Infantil" },
-        { key: "in_quadra_esportes", label: "Alteração: Quadra de Esportes" },
-        { key: "in_refeitorio", label: "Alteração: Refeitório" },
-        { key: "in_saneamento_basico", label: "Alteração: Saneamento Básico" },
-        { key: "in_despensa", label: "Alteração: Despensa" },
-        { key: "in_auditorio", label: "Alteração: Auditório" },
-        { key: "in_patio_coberto", label: "Alteração: Pátio Coberto" },
-        { key: "in_patio_descoberto", label: "Alteração: Pátio Descoberto" },
-        { key: "in_area_verde", label: "Alteração: Área Verde" },
-        { key: "in_lavanderia", label: "Alteração: Lavanderia" },
-        // Fallbacks genéricos caso o nome venha cortado
-        { key: "agua_rede", label: "Alteração: Água da Rede Pública" },
-        { key: "salas", label: "Inconsistência Infra: Salas" }
-    ];
-
+    // Configuração de Níveis e Cores
     const LEVELS_CONFIG = {
         5: { label: "Crítico", class: "badge-level-5" },
         4: { label: "Alto", class: "badge-level-4" },
@@ -201,13 +170,12 @@
         0: { label: "Ok", class: "badge-level-0" }
     };
 
-    // Dados de exemplo com nomes complexos iguais aos do SAS
     const SAMPLE_DATA_WIDE = {
         columns: [
             { label: "ID Escola", type: "string" },
-            { label: "Nível da Severidade do Alerta... | Check_Negocio (1)", type: "number" },
-            { label: "In_Banheiro", type: "number" },
-            { label: "Severidade | In_Internet", type: "number" },
+            { label: "Nível da Severidade do Alerta - Verifica coerência das salas | Check_Negocio", type: "number" },
+            { label: "Nível da Severidade do Alerta - Comparação indicador banheiro | In_Banheiro", type: "number" },
+            { label: "Nível de Severidade do Alerta - Internet ausente | In_Internet", type: "number" },
             { label: "In_Agua_Rede_Publica", type: "number" }
         ],
         data: [
@@ -221,31 +189,32 @@
     const formatNumber = (num) => new Intl.NumberFormat('pt-BR').format(num);
 
     /**
-     * BUSCA INTELIGENTE DE NOME
-     * Varre o dicionário. Se a coluna contiver a chave, retorna o nome bonito.
-     * Caso contrário, tenta limpar o nome técnico.
+     * PROCESSAMENTO DE NOME (RESOLVE NAME)
+     * Lógica solicitada:
+     * 1. Remove o prefixo "Nível de/da Severidade do Alerta -"
+     * 2. Remove o código após o pipe "|" (Opcional, mas recomendado para limpeza)
      */
     function resolveRuleName(rawLabel) {
         if (!rawLabel) return "Desconhecido";
         
-        const labelLower = rawLabel.toLowerCase();
-
-        // 1. Tenta encontrar correspondência no dicionário
-        for (let rule of RULE_DICTIONARY) {
-            if (labelLower.includes(rule.key)) {
-                return rule.label;
-            }
-        }
-
-        // 2. Se não achou, faz fallback de limpeza (remove pipes e sufixos)
         let clean = rawLabel;
+
+        // 1. Remove o prefixo específico (Case Insensitive, aceita 'de' ou 'da' e traços variados)
+        // Regex: Começo da linha + Nível + d(e ou a) + Severidade + ... + Alerta + espaços/hífens
+        clean = clean.replace(/^Nível d[ae] Severidade do Alerta\s*[-–]?\s*/i, '');
+
+        // 2. Remove o sufixo técnico (tudo a partir do pipe |)
+        // Se a string tiver pipe, pegamos a PRIMEIRA parte (descrição), não a última (código).
         if (clean.includes('|')) {
             const parts = clean.split('|');
-            clean = parts[parts.length - 1];
+            clean = parts[0].trim();
         }
-        clean = clean.replace(/\(\d+\)/g, '').trim(); // Remove (1)
-        
-        return clean; // Retorna o nome técnico limpo se não achar descrição
+
+        // 3. Limpeza final de sufixos numéricos do SAS, ex: (1) e espaços
+        clean = clean.replace(/\s*\(\d+\)$/, '').trim();
+
+        // Se após a limpeza sobrar vazio (caso estranho), retorna o original
+        return clean || rawLabel; 
     }
 
     function onDataReceived(message) {
@@ -264,36 +233,45 @@
         
         columns.forEach((col, index) => {
             const label = col.label;
-            const friendlyName = resolveRuleName(label);
-
-            // Lógica de detecção: 
-            // - É numérico?
-            // - Tem nome amigável encontrado OU parece ser uma regra (tem '|', 'in_', 'check_')
-            // - Ignora colunas que parecem ser ID ou Ano
-            const looksLikeRule = label.includes('|') || label.toLowerCase().includes('nível') || label.toLowerCase().includes('in_') || label.toLowerCase().includes('check_');
             
-            if ((col.type === "number" || col.type === "string") && looksLikeRule) {
-                 // Proteção extra para não pegar o ID da escola se ele for numérico
-                 if (!label.toLowerCase().includes('código') && !label.toLowerCase().includes('id escola')) {
-                     ruleColumnsIndices.push({
-                         index: index,
-                         displayName: friendlyName,
-                         originalLabel: label // Para uso interno de chave única
-                     });
-                 }
+            // Critérios de Detecção:
+            // - Coluna numérica ou texto (nível pode vir como string)
+            // - Label contém palavras-chave de regra
+            const isPotentialRule = 
+                label.includes('|') || 
+                label.toLowerCase().includes('nível') || 
+                label.toLowerCase().includes('in_') || 
+                label.toLowerCase().includes('check_');
+
+            // Ignora colunas que parecem ser identificadores (ID, Código, Ano)
+            const isIdentifier = 
+                label.toLowerCase().includes('código') || 
+                label.toLowerCase().includes('id escola') ||
+                label.toLowerCase() === 'ano';
+
+            if ((col.type === "number" || col.type === "string") && isPotentialRule && !isIdentifier) {
+                 
+                 // Gera o nome amigável limpando o label original
+                 const friendlyName = resolveRuleName(label);
+
+                 ruleColumnsIndices.push({
+                     index: index,
+                     displayName: friendlyName,
+                     originalLabel: label
+                 });
             }
         });
 
         if (ruleColumnsIndices.length === 0) {
-            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma regra identificada. Verifique se as colunas numéricas de severidade foram adicionadas.</div>';
+            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma regra identificada. Verifique se as colunas numéricas foram arrastadas corretamente.</div>';
             return;
         }
 
-        // 2. Agregar Dados
+        // 2. Agregar Dados (Lógica de Wide Data)
+        // Agrupa pelo "displayName" para unificar colunas duplicadas se houver
         const rulesAggregated = {}; 
 
         ruleColumnsIndices.forEach(rc => {
-            // Usamos o displayName como chave para agrupar (ex: se tiver Check_Negocio e Check_Negocio (1), vira um só)
             if (!rulesAggregated[rc.displayName]) {
                 rulesAggregated[rc.displayName] = { 
                     count: 0, 
@@ -308,8 +286,10 @@
                 let val = row[rc.index];
                 let severity = parseInt(val) || 0;
 
+                // Consideramos ocorrência se severidade > 0
                 if (severity > 0) {
                     rulesAggregated[rc.displayName].count++;
+                    // Guarda o maior nível encontrado para colorir o card
                     if (severity > rulesAggregated[rc.displayName].maxLevel) {
                         rulesAggregated[rc.displayName].maxLevel = severity;
                     }
@@ -317,9 +297,9 @@
             });
         });
 
-        // 3. Preparar Array Final
+        // 3. Preparar Array Final e Ordenar
         let processedData = Object.values(rulesAggregated)
-            .filter(item => item.count > 0)
+            .filter(item => item.count > 0) // Mostra apenas regras com ocorrências
             .map(item => {
                 let lvl = item.maxLevel > 5 ? 5 : item.maxLevel;
                 
@@ -331,6 +311,7 @@
                 };
             });
 
+        // Ordenação: Nível mais alto primeiro -> Depois maior volume
         processedData.sort((a, b) => {
             if (b.level !== a.level) return b.level - a.level;
             return b.total - a.total;
@@ -343,7 +324,7 @@
         container.innerHTML = ''; 
 
         if (data.length === 0) {
-             container.innerHTML = '<div class="message-box">Tudo certo! Nenhuma inconsistência encontrada.</div>';
+             container.innerHTML = '<div class="message-box">Tudo certo! Nenhuma inconsistência encontrada nesta seleção.</div>';
              return;
         }
 
@@ -360,7 +341,6 @@
             const card = document.createElement('div');
             card.className = 'rule-card';
             
-            // Renderização Simples: Apenas Título e Badge
             const nameHtml = `
                 <div class="rule-name-container">
                     <h3 class="rule-name">${item.name}</h3>
@@ -389,10 +369,11 @@
         
         const footer = document.createElement('div');
         footer.className = 'debug-info';
-        footer.innerText = `Base: ${formatNumber(totalBase)} escolas.`;
+        footer.innerText = `Base: ${formatNumber(totalBase)} escolas analisadas.`;
         container.appendChild(footer);
     }
 
+    // Inicialização do SAS VA
     if (window.addEventListener) {
         window.addEventListener("message", function(event) {
             var data = event.data;
@@ -402,6 +383,7 @@
         });
     }
 
+    // Fallback Offline
     window.onload = function() {
         setTimeout(() => {
             const container = document.getElementById('app-container');
