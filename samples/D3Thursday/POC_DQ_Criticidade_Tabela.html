@@ -239,7 +239,7 @@
             'BAIXO': { theme: 'theme-baixo', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' },
             'DEFAULT': { theme: 'theme-default', icon: '' }
         };
-        const levelsOrder = ['CRÍTICO', 'ALTO', 'MODERADO', 'BAIXO'];
+        const levelsOrder = ['CRÍTICO', 'ALTO', 'MODERADO', 'NORMAL'];
 
         let state = { columns: [], rawData: [] };
         let isLoaded = false;
@@ -296,7 +296,7 @@
                 // Nível
                 let rawLvl = row[map.level] ? String(row[map.level]).toUpperCase().trim() : 'OUTROS';
                 if (rawLvl === 'CRITICO') rawLvl = 'CRÍTICO';
-                if (rawLvl === 'MEDIO' || rawLvl === 'MÉDIO') rawLvl = 'MODERADO';
+                if (rawLvl === 'MEDIO' || rawLvl === 'MÉDIO') rawLvl = 'MÉDIO';
 
                 // --- LIMPEZA DE NOME (SOLICITAÇÃO USUÁRIO) ---
                 let rawName = row[map.name] || '(Sem Nome)';
