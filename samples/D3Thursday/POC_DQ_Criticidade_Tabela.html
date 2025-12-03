@@ -47,15 +47,18 @@
             overflow: hidden; 
         }
 
-        /* Container Grid */
+        /* Container Grid - MODIFICADO PARA FORÇAR LADO A LADO */
         .kanban-container {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            /* Garante 4 colunas com largura mínima de 220px cada */
+            grid-template-columns: repeat(4, minmax(220px, 1fr));
             gap: 16px;
             flex: 1;
-            overflow-y: hidden; 
+            overflow-y: hidden; /* Scroll vertical interno das colunas */
+            overflow-x: auto;   /* Scroll horizontal apenas se necessário */
             min-height: 0;
             padding-top: 10px;
+            padding-bottom: 5px; /* Espaço para scrollbar horizontal se aparecer */
         }
 
         /* Coluna */
@@ -66,6 +69,7 @@
             display: flex;
             flex-direction: column;
             height: 100%;
+            min-width: 0; /* Previne overflow flexbox */
         }
 
         /* Header */
@@ -79,6 +83,7 @@
             font-size: 0.9rem;
             text-transform: uppercase;
             border-radius: 8px 8px 0 0;
+            white-space: nowrap; /* Título não quebra linha */
         }
 
         .title-wrapper { display: flex; align-items: center; gap: 8px; }
@@ -102,6 +107,13 @@
             gap: 10px;
         }
 
+        /* Custom Scrollbar para ficar mais elegante */
+        .column-body::-webkit-scrollbar { width: 6px; }
+        .column-body::-webkit-scrollbar-track { background: transparent; }
+        .column-body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+        .kanban-container::-webkit-scrollbar { height: 8px; }
+        .kanban-container::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+
         /* Card */
         .alert-card {
             background: white;
@@ -122,12 +134,12 @@
             font-weight: 700;
             margin-bottom: 6px;
             color: #333;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            /* Quebra de linha inteligente para nomes longos limpos */
+            word-break: break-word; 
+            line-height: 1.2;
         }
 
-        .card-metric { font-size: 0.8rem; color: #777; }
+        .card-metric { font-size: 0.8rem; color: #777; margin-top: 4px; }
         .metric-value { color: #333; font-weight: 500; margin-left: 4px; }
 
         /* Temas */
@@ -183,15 +195,6 @@
             font-size: 0.9rem;
         }
         .error { color: red; font-weight: bold; }
-
-        @media (max-width: 1024px) {
-            .kanban-container { grid-template-columns: repeat(2, 1fr); overflow-y: auto; }
-            .kanban-column { min-height: 350px; }
-            body { overflow-y: auto; }
-        }
-        @media (max-width: 600px) {
-            .kanban-container { grid-template-columns: 1fr; }
-        }
     </style>
 </head>
 <body>
@@ -213,7 +216,7 @@
     </div>
 
     <script>
-        // --- 1. SAMPLE DATA (Igual ao seu) ---
+        // --- 1. SAMPLE DATA ---
         const SAMPLE_DATA = {
             columns: [
                 { label: "Nível do alerta", type: "string" },
@@ -261,38 +264,27 @@
         function processData(columns, rows) {
             let map = { name: -1, level: -1, volume: -1 };
 
-            // 1. Prioriza Volume para evitar confundir "qtd_alerta" com Nível
+            // 1. Mapeamento
             columns.forEach((col, i) => {
                 const txt = col.label.toLowerCase();
-                if (txt.includes('qtd') || txt.includes('volume') || txt.includes('quant')) {
-                    map.volume = i; 
-                }
+                if (txt.includes('qtd') || txt.includes('volume') || txt.includes('quant')) map.volume = i; 
             });
-
-            // 2. Busca Nome
             columns.forEach((col, i) => {
-                if (i === map.volume) return; // Pula se já é volume
+                if (i === map.volume) return;
                 const txt = col.label.toLowerCase();
-                if (txt.includes('nome') || txt.includes('variavel')) {
-                    map.name = i;
-                }
+                if (txt.includes('nome') || txt.includes('variavel')) map.name = i;
             });
-
-            // 3. Busca Nível (Risco/Alerta)
             columns.forEach((col, i) => {
-                if (i === map.volume || i === map.name) return; // Pula já usados
+                if (i === map.volume || i === map.name) return;
                 const txt = col.label.toLowerCase();
-                if (txt.includes('nivel') || txt.includes('alerta') || txt.includes('risco')) {
-                    map.level = i;
-                }
+                if (txt.includes('nivel') || txt.includes('alerta') || txt.includes('risco')) map.level = i;
             });
 
-            // Fallback se não achou (Para Sample Data funcionar 100%):
-            // Sample Data: 0=Nivel, 1=Nome, 2=Qtd
+            // Default
             if (map.level === -1 && columns[0].label.includes('Nível')) map.level = 0;
             if (map.name === -1) map.name = 1;
             if (map.volume === -1) map.volume = 2;
-            if (map.level === -1) map.level = 0; // Último recurso
+            if (map.level === -1) map.level = 0;
 
             return rows.map((row, index) => {
                 // Volume
@@ -306,8 +298,14 @@
                 if (rawLvl === 'CRITICO') rawLvl = 'CRÍTICO';
                 if (rawLvl === 'MEDIO' || rawLvl === 'MÉDIO') rawLvl = 'MODERADO';
 
+                // --- LIMPEZA DE NOME (SOLICITAÇÃO USUÁRIO) ---
+                let rawName = row[map.name] || '(Sem Nome)';
+                // Remove os prefixos na ordem (do mais longo para o mais curto para evitar erros)
+                let cleanName = rawName.replace(/^(NAL_DOMIN_DIF_|NAL_DOMIN_|NAL_COMP_VAR_|NAL_COMP_|NAL_)/, '');
+
                 return {
-                    name: row[map.name] || '(Sem Nome)',
+                    name: cleanName, // Nome limpo
+                    fullName: rawName, // Nome original (para detalhes)
                     level: rawLvl,
                     volume: vol,
                     raw: row,
@@ -325,7 +323,6 @@
 
             data.forEach(item => {
                 if (groups[item.level]) groups[item.level].push(item);
-                // Se o nível não bater com nada (ex: "NORMAL"), ignoramos por enquanto
             });
 
             levelsOrder.forEach(lvl => {
@@ -358,7 +355,7 @@
                 card.className = 'alert-card';
                 card.onclick = () => openDetails(item.origIndex);
                 card.innerHTML = `
-                    <div class="card-title" title="${item.name}">${item.name}</div>
+                    <div class="card-title" title="${item.fullName}">${item.name}</div>
                     <div class="card-metric">Volume: <span class="metric-value">${new Intl.NumberFormat('pt-BR').format(item.volume)}</span></div>
                 `;
                 body.appendChild(card);
@@ -369,15 +366,12 @@
 
         function openDetails(origIndex) {
             const itemRaw = state.rawData[origIndex];
-            // Processa apenas este item para exibição correta
-            const dummyCols = state.columns; 
-            // Precisamos dos nomes processados, mas podemos pegar direto do raw para mostrar tudo
-            
             const processedItem = processData(state.columns, [itemRaw])[0];
 
             const modalContent = document.getElementById('modalContent');
             let html = `
-                <p><strong>Variável:</strong> ${processedItem.name}</p>
+                <p><strong>Variável (Limpa):</strong> ${processedItem.name}</p>
+                <p><strong>Nome Original:</strong> <span style="color:#666">${processedItem.fullName}</span></p>
                 <p><strong>Nível:</strong> ${processedItem.level}</p>
                 <p><strong>Volume:</strong> ${new Intl.NumberFormat('pt-BR').format(processedItem.volume)}</p>
                 <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
