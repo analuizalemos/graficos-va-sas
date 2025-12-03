@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Regras - SAS VA (Auto Aggregation)</title>
+
+    <!-- Importando Fonte Inter (Google Fonts) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Paleta de Cores */
+            --color-level-1: #F7D447; /* Baixo */
+            --color-level-2: #CEA606; /* Normal */
+            --color-level-3: #ED7331; /* Moderado */
+            --color-level-4: #EE0505; /* Alto */
+            --color-level-5: #910303; /* Crítico */
+            --color-level-0: #9CA3AF; /* Info/Zero */
+
+            --text-primary: #1F2937;
+            --text-secondary: #6B7280;
+            --bg-card: #FFFFFF;
+            --bg-body: transparent;
+            
+            --font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-body);
+            margin: 0;
+            padding: 8px;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 100%;
+        }
+
+        .rule-card {
+            background-color: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid #E5E7EB;
+            padding: 16px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            cursor: default;
+        }
+
+        .rule-card:hover {
+            transform: scale(1.005);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #D1D5DB;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .rule-name-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .rule-code {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+
+        .rule-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        .severity-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #FFFFFF;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            min-width: 80px;
+        }
+
+        .badge-level-1 { background-color: var(--color-level-1); color: #374151; }
+        .badge-level-2 { background-color: var(--color-level-2); }
+        .badge-level-3 { background-color: var(--color-level-3); }
+        .badge-level-4 { background-color: var(--color-level-4); }
+        .badge-level-5 { background-color: var(--color-level-5); }
+        .badge-level-0 { background-color: var(--color-level-0); }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: var(--text-secondary);
+            border-top: 1px solid #F3F4F6;
+            padding-top: 12px;
+        }
+
+        .impact-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .impact-info strong {
+            color: var(--text-primary);
+        }
+
+        .total-info {
+            font-weight: 500;
+            background-color: #F3F4F6;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .message-box {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        
+        .debug-info {
+            font-size: 10px;
+            color: #ccc;
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <div class="message-box">Carregando visualização...</div>
+    </div>
+
+<script>
+    /**
+     * CONFIGURAÇÕES
+     */
+    
+    // Dicionário de Descrições (De/Para do Código Técnico para Texto Amigável)
+    const RULE_DESCRIPTIONS = {
+        "Check_Negocio": "Inconsistência Infra: Salas Existentes vs Utilizadas",
+        "In_Agua_Rede_Publica": "Alteração: Água da Rede Pública",
+        "In_Almoxarifado": "Alteração: Almoxarifado",
+        "In_Banheiro": "Alteração: Banheiro",
+        "In_Comum_Eja_Fund": "Variação: Matrículas EJA Fundamental",
+        "In_Comum_Fund_Ai": "Variação: Matrículas Fund. Anos Iniciais",
+        "In_Comum_Medio_Medio": "Variação: Matrículas Ensino Médio",
+        "In_Comum_Prof": "Variação: Matrículas Ensino Profissional",
+        "In_Cozinha": "Alteração: Cozinha",
+        "In_Biblioteca": "Alteração: Biblioteca",
+        "In_Energia_Rede_Publica": "Alteração: Energia Rede Pública",
+        "In_Internet": "Alteração: Acesso à Internet",
+        "In_Laboratorio_Informatica": "Alteração: Lab. Informática",
+        "In_Parque_Infantil": "Alteração: Parque Infantil",
+        "In_Quadra_Esportes": "Alteração: Quadra de Esportes",
+        "In_Refeitorio": "Alteração: Refeitório",
+        "In_Saneamento_Basico": "Alteração: Saneamento Básico",
+        // Adicione outros códigos conforme necessário
+    };
+
+    const LEVELS_CONFIG = {
+        5: { label: "Crítico", class: "badge-level-5" },
+        4: { label: "Alto", class: "badge-level-4" },
+        3: { label: "Moderado", class: "badge-level-3" },
+        2: { label: "Normal", class: "badge-level-2" },
+        1: { label: "Baixo", class: "badge-level-1" },
+        0: { label: "Ok", class: "badge-level-0" }
+    };
+
+    /**
+     * SAMPLE DATA (Formato LARGURA/WIDE)
+     * Simula o envio de 1 linha por escola com várias colunas de regras.
+     */
+    const SAMPLE_DATA_WIDE = {
+        columns: [
+            { label: "ID Escola", type: "string" },
+            { label: "Nível Severidade | Check_Negocio", type: "number" },
+            { label: "Nível Severidade | In_Banheiro", type: "number" },
+            { label: "Nível Severidade | In_Internet", type: "number" },
+            { label: "Nível Severidade | In_Agua_Rede_Publica", type: "number" }
+        ],
+        // Simulando 10 escolas
+        data: [
+            ["E001", 5, 0, 0, 4], // Escola crítica em Check_Negocio
+            ["E002", 0, 3, 0, 0], // Escola moderada em Banheiro
+            ["E003", 0, 0, 4, 0], // Escola Alta em Internet
+            ["E004", 5, 5, 0, 0], // Crítica em dois itens
+            ["E005", 0, 0, 0, 0], // Sem problemas
+            ["E006", 0, 2, 0, 1],
+            ["E007", 0, 0, 0, 0],
+            ["E008", 4, 0, 0, 0],
+            ["E009", 0, 0, 0, 4],
+            ["E010", 0, 0, 0, 0]
+        ]
+    };
+
+    const formatNumber = (num) => new Intl.NumberFormat('pt-BR').format(num);
+
+    /**
+     * Extrai o código "Check_Negocio" de strings como "Nível... | Check_Negocio"
+     */
+    function extractRuleCode(rawLabel) {
+        if (!rawLabel) return "";
+        if (rawLabel.includes('|')) {
+            const parts = rawLabel.split('|');
+            return parts[parts.length - 1].trim();
+        }
+        return rawLabel.trim();
+    }
+
+    /**
+     * PROCESSAMENTO PRINCIPAL
+     */
+    function onDataReceived(message) {
+        const container = document.getElementById('app-container');
+        
+        // Validação básica
+        if (!message || !message.data || message.data.length === 0) {
+            container.innerHTML = '<div class="message-box">Nenhum dado disponível.</div>';
+            return;
+        }
+
+        const totalSchools = message.data.length; // Total de escolas no contexto atual
+        const columns = message.columns;
+        
+        // 1. Identificar quais colunas são REGRAS
+        // Critério: Ser numérica e (conter "Severidade" ou ser parte da lista conhecida)
+        // Ignorar colunas de ID, Nome da Escola, Estado, etc.
+        const ruleColumnsIndices = [];
+        
+        columns.forEach((col, index) => {
+            const label = col.label;
+            const cleanCode = extractRuleCode(label);
+            
+            // Se for número e não for um ID óbvio, tentamos tratar como regra
+            // O ideal é que o usuário arraste SOMENTE as colunas de regras + ID se quiser
+            if (col.type === "number" || (col.type === "string" && label.toLowerCase().includes("nível"))) {
+                 // Verifica se temos descrição ou se parece um código de regra
+                 if (RULE_DESCRIPTIONS[cleanCode] || label.includes('|') || label.startsWith('In_') || label.startsWith('Check_')) {
+                     ruleColumnsIndices.push({
+                         index: index,
+                         code: cleanCode,
+                         label: label
+                     });
+                 }
+            }
+        });
+
+        if (ruleColumnsIndices.length === 0) {
+            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma coluna de regra identificada. Certifique-se de arrastar as medidas numéricas das regras.</div>';
+            return;
+        }
+
+        // 2. Agregar Dados (Varredura das Linhas)
+        // Objeto para guardar totais por regra
+        const rulesAggregated = {}; // { "Check_Negocio": { count: 0, maxLevel: 0 } }
+
+        // Inicializa estrutura
+        ruleColumnsIndices.forEach(rc => {
+            rulesAggregated[rc.code] = { 
+                count: 0, 
+                maxLevel: 0,
+                code: rc.code
+            };
+        });
+
+        // Loop principal (pode ser pesado se forem muitas linhas, mas o SAS geralmente pagina ou limita)
+        message.data.forEach(row => {
+            ruleColumnsIndices.forEach(rc => {
+                let val = row[rc.index];
+                
+                // Conversão segura para número
+                let severity = parseInt(val) || 0;
+
+                if (severity > 0) {
+                    rulesAggregated[rc.code].count++;
+                    
+                    // Atualiza a severidade máxima encontrada para esta regra
+                    if (severity > rulesAggregated[rc.code].maxLevel) {
+                        rulesAggregated[rc.code].maxLevel = severity;
+                    }
+                }
+            });
+        });
+
+        // 3. Transformar em Array para Renderização
+        let processedData = Object.values(rulesAggregated)
+            .filter(item => item.count > 0) // Remove regras sem ocorrências (opcional, pode remover essa linha se quiser mostrar zeros)
+            .map(item => {
+                // Limita severidade a 5
+                let lvl = item.maxLevel > 5 ? 5 : item.maxLevel;
+                
+                return {
+                    code: item.code,
+                    name: RULE_DESCRIPTIONS[item.code] || item.code,
+                    level: lvl,
+                    total: item.count,
+                    percent: (item.count / totalSchools) * 100
+                };
+            });
+
+        // Ordenação: Maior Severidade -> Maior Volume
+        processedData.sort((a, b) => {
+            if (b.level !== a.level) return b.level - a.level;
+            return b.total - a.total;
+        });
+
+        renderCards(processedData, container, totalSchools);
+    }
+
+    function renderCards(data, container, totalBase) {
+        container.innerHTML = ''; 
+
+        if (data.length === 0) {
+             container.innerHTML = '<div class="message-box">Tudo certo! Nenhuma inconsistência encontrada nesta seleção.</div>';
+             return;
+        }
+
+        data.forEach(item => {
+            const levelConfig = LEVELS_CONFIG[item.level] || LEVELS_CONFIG[0];
+            
+            // Formatação Percentual
+            let percentText = "0%";
+            if (item.percent > 0 && item.percent < 0.1) {
+                percentText = "< 0,1%";
+            } else {
+                percentText = item.percent.toFixed(1).replace('.', ',') + "%";
+            }
+            
+            const card = document.createElement('div');
+            card.className = 'rule-card';
+            
+            const nameHtml = `
+                <div class="rule-name-container">
+                    <span class="rule-code">${item.code}</span>
+                    <h3 class="rule-name">${item.name}</h3>
+                </div>`;
+
+            card.innerHTML = `
+                <div class="card-header">
+                    ${nameHtml}
+                    <div class="severity-badge ${levelConfig.class}">
+                        ${levelConfig.label}
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="impact-info">
+                        <span>Afeta</span>
+                        <strong>${percentText}</strong>
+                        <span>das escolas</span>
+                    </div>
+                    <div class="total-info">
+                        Total: ${formatNumber(item.total)}
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+        
+        // Debug footer (útil para saber quantas linhas o SAS enviou)
+        const footer = document.createElement('div');
+        footer.className = 'debug-info';
+        footer.innerText = `Base de cálculo: ${formatNumber(totalBase)} escolas analisadas.`;
+        container.appendChild(footer);
+    }
+
+    // Listener do SAS
+    if (window.addEventListener) {
+        window.addEventListener("message", function(event) {
+            var data = event.data;
+            if (data && data.hasOwnProperty("data") && data.hasOwnProperty("columns")) {
+                onDataReceived(data);
+            }
+        });
+    }
+
+    // Inicialização Offline (Dev)
+    window.onload = function() {
+        setTimeout(() => {
+            const container = document.getElementById('app-container');
+            if (container.innerText.includes("Carregando")) {
+                console.log("Modo Dev: Carregando Sample Data Wide.");
+                onDataReceived(SAMPLE_DATA_WIDE);
+            }
+        }, 800);
+    };
+
+</script>
+</body>
+</html>
