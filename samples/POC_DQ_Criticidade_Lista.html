@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Regras - SAS VA (Final)</title>
+    <title>Painel de Regras - SAS VA (Busca por Palavra-Chave)</title>
 
     <!-- Importando Fonte Inter (Google Fonts) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -160,33 +160,37 @@
      * CONFIGURAÇÕES
      */
     
-    // Dicionário de Descrições (Chaves devem bater com o final do nome da coluna)
-    // Dica: O código agora ignora maiúsculas/minúsculas na busca da chave.
-    const RULE_DESCRIPTIONS = {
-        "check_negocio": "Inconsistência Infra: Salas Existentes vs Utilizadas",
-        "in_agua_rede_publica": "Alteração: Água da Rede Pública",
-        "in_almoxarifado": "Alteração: Almoxarifado",
-        "in_banheiro": "Alteração: Banheiro",
-        "in_comum_eja_fund": "Variação: Matrículas EJA Fundamental",
-        "in_comum_fund_ai": "Variação: Matrículas Fund. Anos Iniciais",
-        "in_comum_medio_medio": "Variação: Matrículas Ensino Médio",
-        "in_comum_prof": "Variação: Matrículas Ensino Profissional",
-        "in_cozinha": "Alteração: Cozinha",
-        "in_biblioteca": "Alteração: Biblioteca",
-        "in_energia_rede_publica": "Alteração: Energia Rede Pública",
-        "in_internet": "Alteração: Acesso à Internet",
-        "in_laboratorio_informatica": "Alteração: Lab. Informática",
-        "in_parque_infantil": "Alteração: Parque Infantil",
-        "in_quadra_esportes": "Alteração: Quadra de Esportes",
-        "in_refeitorio": "Alteração: Refeitório",
-        "in_saneamento_basico": "Alteração: Saneamento Básico",
-        "in_despensa": "Alteração: Despensa",
-        "in_auditorio": "Alteração: Auditório",
-        "in_patio_coberto": "Alteração: Pátio Coberto",
-        "in_patio_descoberto": "Alteração: Pátio Descoberto",
-        "in_area_verde": "Alteração: Área Verde",
-        "in_lavanderia": "Alteração: Lavanderia"
-    };
+    // ESTRATÉGIA DE BUSCA:
+    // O código vai procurar se a coluna contém a "chave" (texto em minúsculo).
+    // Se encontrar, usa a descrição.
+    const RULE_DICTIONARY = [
+        { key: "check_negocio", label: "Inconsistência Infra: Salas Existentes vs Utilizadas" },
+        { key: "in_agua_rede_publica", label: "Alteração: Água da Rede Pública" },
+        { key: "in_almoxarifado", label: "Alteração: Almoxarifado" },
+        { key: "in_banheiro", label: "Alteração: Banheiro" },
+        { key: "in_comum_eja_fund", label: "Variação: Matrículas EJA Fundamental" },
+        { key: "in_comum_fund_ai", label: "Variação: Matrículas Fund. Anos Iniciais" },
+        { key: "in_comum_medio_medio", label: "Variação: Matrículas Ensino Médio" },
+        { key: "in_comum_prof", label: "Variação: Matrículas Ensino Profissional" },
+        { key: "in_cozinha", label: "Alteração: Cozinha" },
+        { key: "in_biblioteca", label: "Alteração: Biblioteca" },
+        { key: "in_energia_rede_publica", label: "Alteração: Energia Rede Pública" },
+        { key: "in_internet", label: "Alteração: Acesso à Internet" },
+        { key: "in_laboratorio_informatica", label: "Alteração: Lab. Informática" },
+        { key: "in_parque_infantil", label: "Alteração: Parque Infantil" },
+        { key: "in_quadra_esportes", label: "Alteração: Quadra de Esportes" },
+        { key: "in_refeitorio", label: "Alteração: Refeitório" },
+        { key: "in_saneamento_basico", label: "Alteração: Saneamento Básico" },
+        { key: "in_despensa", label: "Alteração: Despensa" },
+        { key: "in_auditorio", label: "Alteração: Auditório" },
+        { key: "in_patio_coberto", label: "Alteração: Pátio Coberto" },
+        { key: "in_patio_descoberto", label: "Alteração: Pátio Descoberto" },
+        { key: "in_area_verde", label: "Alteração: Área Verde" },
+        { key: "in_lavanderia", label: "Alteração: Lavanderia" },
+        // Fallbacks genéricos caso o nome venha cortado
+        { key: "agua_rede", label: "Alteração: Água da Rede Pública" },
+        { key: "salas", label: "Inconsistência Infra: Salas" }
+    ];
 
     const LEVELS_CONFIG = {
         5: { label: "Crítico", class: "badge-level-5" },
@@ -197,71 +201,51 @@
         0: { label: "Ok", class: "badge-level-0" }
     };
 
+    // Dados de exemplo com nomes complexos iguais aos do SAS
     const SAMPLE_DATA_WIDE = {
         columns: [
             { label: "ID Escola", type: "string" },
-            { label: "Nível Severidade | Check_Negocio (1)", type: "number" },
-            { label: "Nível Severidade | In_Banheiro", type: "number" },
-            { label: "Nível Severidade | In_Internet (2)", type: "number" },
-            { label: "Nível Severidade | In_Agua_Rede_Publica", type: "number" }
+            { label: "Nível da Severidade do Alerta... | Check_Negocio (1)", type: "number" },
+            { label: "In_Banheiro", type: "number" },
+            { label: "Severidade | In_Internet", type: "number" },
+            { label: "In_Agua_Rede_Publica", type: "number" }
         ],
         data: [
             ["E001", 5, 0, 0, 4], 
             ["E002", 0, 3, 0, 0], 
             ["E003", 0, 0, 4, 0], 
-            ["E004", 5, 5, 0, 0], 
-            ["E005", 0, 0, 0, 0],
-            ["E006", 0, 2, 0, 1]
+            ["E004", 5, 5, 0, 0]
         ]
     };
 
     const formatNumber = (num) => new Intl.NumberFormat('pt-BR').format(num);
 
     /**
-     * LIMPEZA DE LABEL
-     * Remove pipes, sufixos (1) e espaços. Retorna lowercase para facilitar o match.
+     * BUSCA INTELIGENTE DE NOME
+     * Varre o dicionário. Se a coluna contiver a chave, retorna o nome bonito.
+     * Caso contrário, tenta limpar o nome técnico.
      */
-    function extractRuleCode(rawLabel) {
-        if (!rawLabel) return "";
+    function resolveRuleName(rawLabel) {
+        if (!rawLabel) return "Desconhecido";
         
+        const labelLower = rawLabel.toLowerCase();
+
+        // 1. Tenta encontrar correspondência no dicionário
+        for (let rule of RULE_DICTIONARY) {
+            if (labelLower.includes(rule.key)) {
+                return rule.label;
+            }
+        }
+
+        // 2. Se não achou, faz fallback de limpeza (remove pipes e sufixos)
         let clean = rawLabel;
-        
-        // 1. Pega a parte depois do pipe se existir
         if (clean.includes('|')) {
             const parts = clean.split('|');
             clean = parts[parts.length - 1];
         }
-
-        // 2. Remove sufixos numéricos (1), (2024), etc e espaços
-        clean = clean.replace(/\(\d+\)/g, '').trim();
-
-        return clean; 
-    }
-
-    /**
-     * BUSCA DESCRIÇÃO
-     * Tenta encontrar a descrição correspondente no dicionário
-     */
-    function getFriendlyName(code) {
-        // Normaliza para busca (lowercase)
-        const codeLower = code.toLowerCase();
+        clean = clean.replace(/\(\d+\)/g, '').trim(); // Remove (1)
         
-        // Tenta match exato
-        if (RULE_DESCRIPTIONS[codeLower]) {
-            return RULE_DESCRIPTIONS[codeLower];
-        }
-
-        // Tenta verificar se alguma chave do dicionário está contida no código
-        // Ex: code="Check_Negocio_v2" e chave="check_negocio"
-        const keys = Object.keys(RULE_DESCRIPTIONS);
-        for (let key of keys) {
-            if (codeLower.includes(key)) {
-                return RULE_DESCRIPTIONS[key];
-            }
-        }
-
-        // Se falhar tudo, retorna o código original "bonitinho"
-        return code;
+        return clean; // Retorna o nome técnico limpo se não achar descrição
     }
 
     function onDataReceived(message) {
@@ -280,25 +264,28 @@
         
         columns.forEach((col, index) => {
             const label = col.label;
-            const cleanCode = extractRuleCode(label);
-            const friendlyName = getFriendlyName(cleanCode);
+            const friendlyName = resolveRuleName(label);
 
-            // Se conseguimos uma descrição diferente do código ou se o label parece regra
-            const looksLikeRule = label.includes('|') || label.toLowerCase().includes('nível') || cleanCode.toLowerCase().startsWith('in_') || cleanCode.toLowerCase().startsWith('check_');
-
+            // Lógica de detecção: 
+            // - É numérico?
+            // - Tem nome amigável encontrado OU parece ser uma regra (tem '|', 'in_', 'check_')
+            // - Ignora colunas que parecem ser ID ou Ano
+            const looksLikeRule = label.includes('|') || label.toLowerCase().includes('nível') || label.toLowerCase().includes('in_') || label.toLowerCase().includes('check_');
+            
             if ((col.type === "number" || col.type === "string") && looksLikeRule) {
-                 if (cleanCode.length > 2 && cleanCode !== "ID") {
+                 // Proteção extra para não pegar o ID da escola se ele for numérico
+                 if (!label.toLowerCase().includes('código') && !label.toLowerCase().includes('id escola')) {
                      ruleColumnsIndices.push({
                          index: index,
-                         code: cleanCode,
-                         displayName: friendlyName
+                         displayName: friendlyName,
+                         originalLabel: label // Para uso interno de chave única
                      });
                  }
             }
         });
 
         if (ruleColumnsIndices.length === 0) {
-            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma regra identificada. Verifique os nomes das colunas.</div>';
+            container.innerHTML = '<div class="message-box" style="color:red">Nenhuma regra identificada. Verifique se as colunas numéricas de severidade foram adicionadas.</div>';
             return;
         }
 
@@ -306,13 +293,12 @@
         const rulesAggregated = {}; 
 
         ruleColumnsIndices.forEach(rc => {
-            // Usa o displayName como chave para agrupar (caso colunas duplicadas gerem o mesmo nome)
-            if (!rulesAggregated[rc.code]) {
-                rulesAggregated[rc.code] = { 
+            // Usamos o displayName como chave para agrupar (ex: se tiver Check_Negocio e Check_Negocio (1), vira um só)
+            if (!rulesAggregated[rc.displayName]) {
+                rulesAggregated[rc.displayName] = { 
                     count: 0, 
                     maxLevel: 0,
-                    name: rc.displayName,
-                    code: rc.code
+                    name: rc.displayName
                 };
             }
         });
@@ -323,9 +309,9 @@
                 let severity = parseInt(val) || 0;
 
                 if (severity > 0) {
-                    rulesAggregated[rc.code].count++;
-                    if (severity > rulesAggregated[rc.code].maxLevel) {
-                        rulesAggregated[rc.code].maxLevel = severity;
+                    rulesAggregated[rc.displayName].count++;
+                    if (severity > rulesAggregated[rc.displayName].maxLevel) {
+                        rulesAggregated[rc.displayName].maxLevel = severity;
                     }
                 }
             });
@@ -338,7 +324,7 @@
                 let lvl = item.maxLevel > 5 ? 5 : item.maxLevel;
                 
                 return {
-                    name: item.name, // Nome amigável já resolvido
+                    name: item.name,
                     level: lvl,
                     total: item.count,
                     percent: (item.count / totalSchools) * 100
@@ -374,7 +360,7 @@
             const card = document.createElement('div');
             card.className = 'rule-card';
             
-            // Removido o <span class="rule-code">
+            // Renderização Simples: Apenas Título e Badge
             const nameHtml = `
                 <div class="rule-name-container">
                     <h3 class="rule-name">${item.name}</h3>
@@ -391,10 +377,10 @@
                     <div class="impact-info">
                         <span>Afeta</span>
                         <strong>${percentText}</strong>
-                        <span>das escolas com alerta</span>
+                        <span>das escolas</span>
                     </div>
                     <div class="total-info">
-                        Total de escolas: ${formatNumber(item.total)}
+                        Total: ${formatNumber(item.total)}
                     </div>
                 </div>
             `;
@@ -403,7 +389,7 @@
         
         const footer = document.createElement('div');
         footer.className = 'debug-info';
-        footer.innerText = `Base: ${formatNumber(totalBase)} escolas analisadas.`;
+        footer.innerText = `Base: ${formatNumber(totalBase)} escolas.`;
         container.appendChild(footer);
     }
 
@@ -420,7 +406,7 @@
         setTimeout(() => {
             const container = document.getElementById('app-container');
             if (container.innerText.includes("Carregando")) {
-                console.log("Modo Dev: Carregando Sample Data Wide.");
+                console.log("Modo Dev: Carregando Sample Data.");
                 onDataReceived(SAMPLE_DATA_WIDE);
             }
         }, 800);
