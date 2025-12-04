@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Gestor - INEP</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { background-color: #f4f6f9; font-family: "Segoe UI", Roboto, sans-serif; height: 100vh; overflow: hidden; margin: 0; }
+        
+        /* --- TELA DE LOGIN --- */
+        #login-screen {
+            display: flex; justify-content: center; align-items: center; height: 100%; width: 100%;
+            position: absolute; top: 0; left: 0; z-index: 10;
+            background: linear-gradient(135deg, #f4f6f9 0%, #e2e6ea 100%);
+        }
+        .login-card {
+            background: white; padding: 40px; border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 100%; max-width: 400px;
+            text-align: center; border-top: 5px solid #0F62AC;
+        }
+        .brand-logo { color: #0F62AC; font-size: 40px; margin-bottom: 10px; }
+        .login-title { color: #333; font-weight: 700; margin-bottom: 5px; }
+        .login-subtitle { color: #6c757d; font-size: 0.9rem; margin-bottom: 25px; }
+        
+        .form-floating { margin-bottom: 15px; }
+        .btn-login {
+            background-color: #0F62AC; border: none; width: 100%; padding: 12px;
+            font-weight: 600; letter-spacing: 0.5px; transition: all 0.3s;
+        }
+        .btn-login:hover { background-color: #0a4d8c; transform: translateY(-1px); }
+        
+        .status-badge {
+            font-size: 11px; padding: 5px 10px; border-radius: 20px;
+            background-color: #e9ecef; color: #495057; display: inline-block; margin-top: 20px;
+        }
+
+        /* --- TELA DE DADOS --- */
+        #data-screen {
+            display: none; height: 100%; flex-direction: column; background: white;
+        }
+        .app-header {
+            padding: 15px 25px; background: white; border-bottom: 1px solid #dee2e6;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .user-info { font-size: 0.9rem; color: #495057; }
+        .user-info strong { color: #0F62AC; }
+        
+        .table-container { padding: 20px; flex: 1; overflow: auto; background-color: #f8f9fa; }
+        .card-table { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        
+        /* DataTables Customization */
+        table.dataTable thead th { background-color: #0F62AC !important; color: white !important; font-weight: 600; padding: 12px !important; }
+        .dt-buttons .btn-success { background-color: #217346 !important; border-color: #217346 !important; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <div class="login-card">
+            <div class="brand-logo"><i class="fa-solid fa-graduation-cap"></i></div>
+            <h3 class="login-title">Portal do Gestor</h3>
+            <p class="login-subtitle">Acesso restrito aos dados da entidade</p>
+            
+            <div class="form-floating text-start">
+                <input type="number" class="form-control" id="txtLogin" placeholder="Código INEP">
+                <label for="txtLogin">Código da Entidade (Login)</label>
+            </div>
+            
+            <div class="form-floating text-start">
+                <input type="password" class="form-control" id="txtSenha" placeholder="Senha">
+                <label for="txtSenha">Senha de Acesso</label>
+            </div>
+
+            <button class="btn btn-primary btn-login" onclick="fazerLogin()" id="btnLogin" disabled>
+                <span id="btnText">Aguardando dados...</span>
+            </button>
+            
+            <div id="msgErro" class="alert alert-danger mt-3 py-2 small" style="display:none"></div>
+            
+            <div class="status-badge" id="statusConexao">
+                <i class="fa-solid fa-circle-notch fa-spin"></i> Conectando ao SAS...
+            </div>
+        </div>
+    </div>
+
+    <div id="data-screen">
+        <div class="app-header">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="m-0" style="color:#0F62AC"><i class="fa-solid fa-table-list"></i> Relatório de Alunos</h4>
+                <div class="vr"></div>
+                <span class="user-info" id="txtUserInfo"></span>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm" onclick="logout()">
+                <i class="fa-solid fa-right-from-bracket"></i> Nova Consulta
+            </button>
+        </div>
+        
+        <div class="table-container">
+            <div class="card-table">
+                <table id="tabelaPrincipal" class="table table-hover w-100" style="width:100%">
+                    </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+
+    <script>
+        // --- ESTADO DA APLICAÇÃO ---
+        let dadosGlobais = [];
+        let colunasGlobais = [];
+        let tabelaInstancia = null;
+
+        // --- 1. COMUNICAÇÃO COM SAS VA (OU TESTE LOCAL) ---
+        
+        // Verifica se é Localhost para facilitar seus testes antes do deploy
+        const isLocal = ["localhost", "127.0.0.1"].includes(location.hostname);
+
+        if (isLocal) {
+            console.warn("Ambiente Local Detectado: Carregando dados fake...");
+            setTimeout(carregarDadosFake, 500); // Simula delay do SAS
+        } else {
+            // Ouvinte oficial do SAS Data-Driven Content
+            if (window.addEventListener) {
+                window.addEventListener("message", onSasMessage, false);
+            } else {
+                window.attachEvent("onmessage", onSasMessage);
+            }
+        }
+
+        function onSasMessage(event) {
+            if (event.data && event.data.hasOwnProperty("data")) {
+                dadosGlobais = event.data.data;
+                colunasGlobais = event.data.columns;
+                
+                atualizarStatusUI(dadosGlobais.length);
+            }
+        }
+
+        function atualizarStatusUI(qtdLinhas) {
+            const status = document.getElementById("statusConexao");
+            const btn = document.getElementById("btnLogin");
+            const btnText = document.getElementById("btnText");
+
+            if (qtdLinhas > 0) {
+                status.innerHTML = `<i class="fa-solid fa-check-circle text-success"></i> ${qtdLinhas} registros carregados.`;
+                btn.disabled = false;
+                btnText.innerText = "ACESSAR DADOS";
+            } else {
+                status.innerHTML = `<i class="fa-solid fa-exclamation-circle text-warning"></i> Nenhum dado recebido.`;
+            }
+        }
+
+        // --- 2. LÓGICA DE LOGIN ---
+        function fazerLogin() {
+            const loginInput = document.getElementById("txtLogin").value.toString().trim();
+            const senhaInput = document.getElementById("txtSenha").value.toString().trim();
+            const erroDiv = document.getElementById("msgErro");
+            
+            erroDiv.style.display = 'none';
+
+            if (!loginInput || !senhaInput) {
+                erroDiv.innerText = "Por favor, preencha Login e Senha.";
+                erroDiv.style.display = 'block';
+                return;
+            }
+
+            // O FILTRO MÁGICO (Client-Side)
+            // Filtra o array gigante na memória
+            // IMPORTANTE: Assume que Coluna 0 = Login, Coluna 1 = Senha
+            const dadosFiltrados = dadosGlobais.filter(linha => {
+                const rowLogin = String(linha[0] || "").trim();
+                const rowSenha = String(linha[1] || "").trim();
+                return rowLogin === loginInput && rowSenha === senhaInput;
+            });
+
+            if (dadosFiltrados.length > 0) {
+                renderizarTabela(dadosFiltrados, loginInput);
+            } else {
+                erroDiv.innerHTML = "<strong>Acesso Negado.</strong><br>Credenciais incorretas ou sem dados para esta entidade.";
+                erroDiv.style.display = 'block';
+            }
+        }
+
+        // --- 3. RENDERIZAÇÃO DA TABELA ---
+        function renderizarTabela(dados, usuario) {
+            // Troca de tela
+            document.getElementById("login-screen").style.display = "none";
+            document.getElementById("data-screen").style.display = "flex";
+            
+            // Info Header
+            document.getElementById("txtUserInfo").innerHTML = `Entidade: <strong>${usuario}</strong> | Registros: <strong>${dados.length}</strong>`;
+
+            // Mapeia colunas para o DataTables
+            // Removemos a Senha (indice 1) da visualização. O Login (indice 0) mantemos se quiser.
+            const colunasDT = colunasGlobais.map((col, index) => {
+                return { 
+                    title: col.label, 
+                    visible: index !== 1, // Oculta a coluna de Senha
+                    className: "align-middle"
+                };
+            });
+
+            // Limpa tabela anterior
+            if (tabelaInstancia) {
+                tabelaInstancia.destroy();
+                $('#tabelaPrincipal').empty();
+            }
+
+            // Cria DataTables
+            tabelaInstancia = $('#tabelaPrincipal').DataTable({
+                data: dados,
+                columns: colunasDT,
+                language: {
+                    url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json"
+                },
+                dom: '<"d-flex justify-content-between mb-3"Bf>rt<"d-flex justify-content-between mt-3"ip>',
+                buttons: [
+                    {
+                        extend: 'excelHtml5',
+                        text: '<i class="fa-solid fa-file-excel"></i> Exportar Excel',
+                        className: 'btn btn-success',
+                        title: 'Relatorio_Entidade_' + usuario
+                    }
+                ],
+                pageLength: 10,
+                responsive: true,
+                scrollX: true // Importante para tabelas largas
+            });
+        }
+
+        function logout() {
+            document.getElementById("txtLogin").value = "";
+            document.getElementById("txtSenha").value = "";
+            document.getElementById("data-screen").style.display = "none";
+            document.getElementById("login-screen").style.display = "flex";
+        }
+
+        // --- DADOS FAKE (APENAS PARA TESTE LOCAL) ---
+        function carregarDadosFake() {
+            // Simula a estrutura do seu CSV
+            colunasGlobais = [
+                {label: "CO_ENTIDADE"}, {label: "SENHA_GERADA"}, 
+                {label: "NO_ENTIDADE"}, {label: "ANO_INGRESSO"}, {label: "NO_CURSO"}, {label: "SITUACAO"}
+            ];
+            
+            dadosGlobais = [
+                ["23066709", "3FB8ECCA", "IFCE - FORTALEZA", "2007", "Eletrotécnica", "Evasão"],
+                ["23066709", "3FB8ECCA", "IFCE - FORTALEZA", "2008", "Informática", "Concluído"],
+                ["5001", "123", "ESCOLA TESTE", "2024", "Redes", "Cursando"]
+            ];
+            
+            // Preenche automático para facilitar seu teste
+            document.getElementById("txtLogin").value = "23066709";
+            document.getElementById("txtSenha").value = "3FB8ECCA";
+            
+            atualizarStatusUI(dadosGlobais.length);
+        }
+    </script>
+</body>
+</html>
