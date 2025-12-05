@@ -1,196 +1,304 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Login DDC via Job</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Gestor - INEP</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        body { background-color: transparent; font-family: "Segoe UI", sans-serif; height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; }
-        .login-container { width: 300px; text-align: center; }
-        .form-control { margin-bottom: 10px; }
-        .btn-primary { background-color: #0F62AC; border: none; width: 100%; font-weight: bold; }
-        .btn-primary:hover { background-color: #0a4d8c; }
-        #msgErro { color: #dc3545; font-size: 14px; margin-top: 10px; display: none; }
-        .spinner-border { display: none; width: 1rem; height: 1rem; margin-right: 5px;}
+        body { background-color: #f4f6f9; font-family: "Segoe UI", Roboto, sans-serif; height: 100vh; overflow: hidden; margin: 0; }
+        
+        /* LOGIN */
+        #login-screen {
+            display: flex; justify-content: center; align-items: center; height: 100%; width: 100%;
+            position: absolute; top: 0; left: 0; z-index: 10;
+            background: linear-gradient(135deg, #f4f6f9 0%, #e2e6ea 100%);
+        }
+        .login-card {
+            background: white; padding: 40px; border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 100%; max-width: 450px;
+            text-align: center; border-top: 5px solid #0F62AC;
+        }
+        .btn-login {
+            background-color: #0F62AC; border: none; width: 100%; padding: 12px;
+            font-weight: 600; color: white; transition: all 0.3s;
+        }
+        .btn-login:hover { background-color: #0a4d8c; }
+        .btn-login:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+
+        /* DADOS */
+        #data-screen { display: none; height: 100%; flex-direction: column; background: white; padding: 20px;}
+        table.dataTable thead th { background-color: #0F62AC !important; color: white !important; }
+        
+        .alert-instruction { font-size: 0.85rem; text-align: left; margin-bottom: 20px; border-left: 4px solid #ffc107; }
+        
+        /* MODAL MANUAL (SOLUÇÃO PARA O BLOQUEIO) */
+        .manual-modal {
+            display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center;
+        }
+        .manual-modal-content {
+            background-color: #fff; padding: 20px; border-radius: 8px; width: 90%; max-width: 600px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center;
+        }
+        .manual-textarea {
+            width: 100%; height: 200px; padding: 10px; font-family: monospace; font-size: 12px;
+            border: 1px solid #ccc; background-color: #f8f9fa; color: #333; margin: 15px 0;
+            white-space: pre; overflow: auto;
+        }
+        .btn-close-modal {
+            background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;
+        }
     </style>
+
+    <script>
+        var dadosGlobais = [];
+        var colunasGlobais = [];
+        var dadosAtuais = [];
+        var tabelaInstancia = null;
+        const LIMITE_LINHAS_AVISO = 20000; 
+
+        function receberDadosSAS(event) {
+            if (event.data && event.data.hasOwnProperty("data")) {
+                dadosGlobais = event.data.data;
+                colunasGlobais = event.data.columns;
+                atualizarInterfaceLogin();
+            }
+        }
+
+        function atualizarInterfaceLogin() {
+            var btn = document.getElementById("btnLogin");
+            var status = document.getElementById("statusConexao");
+            var aviso = document.getElementById("avisoFiltro");
+            var qtd = dadosGlobais.length;
+
+            if (qtd === 0) {
+                status.innerHTML = '<span class="text-danger"><i class="fa-solid fa-times"></i> Nenhum dado recebido.</span>';
+                aviso.style.display = "block";
+                aviso.innerHTML = "<strong>Atenção:</strong> Utilize os filtros do relatório (Estado/Município) para carregar os dados.";
+                btn.disabled = true;
+                btn.innerHTML = "AGUARDANDO FILTRO...";
+            } 
+            else if (qtd >= LIMITE_LINHAS_AVISO) {
+                status.innerHTML = `<span class="text-warning"><i class="fa-solid fa-triangle-exclamation"></i> ${qtd} registros (Limite atingido).</span>`;
+                aviso.style.display = "block";
+                aviso.innerHTML = "<strong>Muitos dados:</strong> Se o login falhar, filtre mais (ex: Cidade).";
+                btn.disabled = false;
+                btn.innerHTML = "TENTAR ACESSAR";
+            }
+            else {
+                status.innerHTML = `<span class="text-success"><i class="fa-solid fa-check"></i> ${qtd} escolas carregadas.</span>`;
+                aviso.style.display = "none";
+                btn.disabled = false;
+                btn.innerHTML = "ACESSAR DADOS";
+            }
+        }
+
+        if (window.addEventListener) {
+            window.addEventListener("message", receberDadosSAS, false);
+        } else {
+            window.attachEvent("onmessage", receberDadosSAS);
+        }
+    </script>
 </head>
 <body>
 
-<div class="login-container">
-    <h5 style="color:#0F62AC; margin-bottom: 15px;">Acesso Restrito</h5>
-    
-    <input type="hidden" id="hiddenLogin">
-    
-    <div id="labelEscola" class="text-muted small mb-2">Selecione uma escola...</div>
+    <div id="login-screen">
+        <div class="login-card">
+            <h3 style="color:#0F62AC; font-weight:bold;">Portal do Gestor</h3>
+            <div id="avisoFiltro" class="alert alert-warning alert-instruction" role="alert">
+                <strong>Carregando...</strong> Aguarde os dados do SAS.
+            </div>
+            <div class="form-floating mb-3 text-start">
+                <input type="number" class="form-control" id="txtLogin" placeholder="Login">
+                <label>Login (CO_ENTIDADE)</label>
+            </div>
+            <div class="form-floating mb-3 text-start">
+                <input type="password" class="form-control" id="txtSenha" placeholder="Senha">
+                <label>Senha</label>
+            </div>
+            <button class="btn btn-login" onclick="fazerLogin()" id="btnLogin" disabled>
+                <i class="fa-solid fa-filter"></i> Aguardando Filtros...
+            </button>
+            <div id="msgErro" class="alert alert-danger mt-3 py-2 small" style="display:none"></div>
+            <div id="statusConexao" class="mt-3 small text-muted">Conectando...</div>
+        </div>
+    </div>
 
-    <input type="password" id="txtSenha" class="form-control" placeholder="Senha" disabled>
-    
-    <button id="btnEntrar" class="btn btn-primary" disabled>
-        <span class="spinner-border" id="loadingSpinner"></span> ENTRAR
-    </button>
-    
-    <div id="msgErro"></div>
-</div>
+    <div id="data-screen">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 style="color:#0F62AC; margin:0">Relatório de Alunos</h4>
+                <small class="text-muted" id="infoUsuario"></small>
+            </div>
+            <div>
+                <button class="btn btn-info btn-sm me-1 text-white" onclick="abrirModalManual('email')">
+                    <i class="fa-solid fa-envelope"></i> E-mail
+                </button>
 
-<script>
-    // --- 1. REPLICAÇÃO DO jobExecutionUtil.js (Do seu exemplo) ---
-    const getCSRFToken = async (url) => {
-        const response = await fetch(url + "/SASJobExecution/csrf", { method: "GET", credentials: "include" });
-        return response.headers.get("x-csrf-token");
-    }
+                <button class="btn btn-primary btn-sm me-1" onclick="abrirModalManual('excel')">
+                    <i class="fa-solid fa-copy"></i> Copiar p/ Excel
+                </button>
+                
+                <button class="btn btn-secondary btn-sm me-1" onclick="toggleFullScreen()">
+                    <i class="fa-solid fa-expand"></i> Tela Cheia
+                </button>
 
-    const checkStatus = async (token, url, jobId) => {
-        const headers = { 'Accept': 'text/plain', 'X-CSRF-Token': token, 'X-CSRF-Header': 'X-CSRF-Token' };
-        const state = await fetch(`${url}/jobExecution/jobs/${jobId}/state`, { headers: headers, credentials: "include" });
-        return state.text();
-    }
+                <button class="btn btn-outline-danger btn-sm" onclick="logout()">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sair
+                </button>
+            </div>
+        </div>
+        <div style="flex:1; overflow:auto;">
+            <table id="tabelaPrincipal" class="table table-hover w-100" style="width:100%"></table>
+        </div>
+    </div>
 
-    const retrieveJobOutput = async (token, url, jobId) => {
-        const headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': token, 'X-CSRF-Header': 'X-CSRF-Token' };
-        const request = await fetch(`${url}/SASJobExecution/?_jobexec=/jobExecution/jobs/${jobId}&_action=json`, { headers: headers, credentials: "include" });
-        const results = await request.json();
-        // Procura o arquivo _webout.json na resposta
-        const body = results.items.find(item => item.name === "_webout.json");
-        if (!body) throw new Error("Saída do Job não encontrada.");
-        
-        const responseData = await fetch(`${url}${body.href}`, { headers: headers, credentials: "include" });
-        return responseData.json();
-    }
-
-    const executeJob = async (url, data, programPath) => {
-        const csrfToken = await getCSRFToken(url);
-        const jobHeaders = {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': csrfToken,
-            'X-CSRF-Header': 'X-CSRF-Token'
-        };
-        
-        // Parâmetros obrigatórios para rodar em background e aceitar JSON
-        const params = new URLSearchParams({
-            "_program": programPath,
-            "_action": "background",
-            "_output_type": "json"
-        });
-
-        // Dispara o Job
-        const jobRequest = await fetch(`${url}/SASJobExecution/?${params}`, {
-            method: "POST",
-            headers: jobHeaders,
-            credentials: "include",
-            body: JSON.stringify(data)
-        });
-
-        const jobId = jobRequest.headers.get("x-sas-jobexec-id");
-        if (!jobId) throw new Error("Falha ao iniciar o Job SAS.");
-
-        // Polling (espera o job terminar)
-        let jobStatus = "running";
-        while (jobStatus === "running" || jobStatus === "pending") {
-            await new Promise(r => setTimeout(r, 500)); // Espera 500ms
-            jobStatus = await checkStatus(csrfToken, url, jobId);
-        }
-
-        if (jobStatus === "completed") {
-            return await retrieveJobOutput(csrfToken, url, jobId);
-        } else {
-            throw new Error("Job falhou com status: " + jobStatus);
-        }
-    }
-
-    // --- 2. LÓGICA DO DDC (VA Integration) ---
-    
-    // Configurações
-    const SAS_BASE_URL = "https://analitico.apps.ocpbm-1.inep.gov.br"; // SEU AMBIENTE
-    const JOB_PATH = "/Public/Validar_Credenciais"; // CAMINHO DO JOB QUE CRIAMOS
-
-    let dadosVA = [];
-    let vaResultName = "";
-
-    // Escuta mensagens do VA
-    window.addEventListener("message", (event) => {
-        if (event.data && event.data.hasOwnProperty("data")) {
-            dadosVA = event.data.data;
-            vaResultName = event.data.resultName;
+    <div id="modalManual" class="manual-modal">
+        <div class="manual-modal-content">
+            <h5 id="modalTitle" style="color:#0F62AC; margin-bottom:10px;">Dados Prontos</h5>
+            <p style="font-size:14px; margin-bottom:5px;">O navegador bloqueou a cópia automática.</p>
+            <p style="font-size:14px; font-weight:bold; color:#d63384;">Pressione Ctrl + C agora para copiar.</p>
             
-            // Assume que Coluna 0 é o CO_ENTIDADE (Login) vindo do filtro
-            if (dadosVA.length > 0) {
-                const loginAtual = dadosVA[0][0]; // Pega o primeiro valor visível
-                document.getElementById("hiddenLogin").value = loginAtual;
-                document.getElementById("labelEscola").innerText = "Entidade: " + loginAtual;
+            <textarea id="areaTransferencia" class="manual-textarea" readonly></textarea>
+            
+            <button class="btn-close-modal" onclick="fecharModal()">Fechar</button>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        // --- LÓGICA DE LOGIN ---
+        function fazerLogin() {
+            try {
+                var login = document.getElementById("txtLogin").value.toString().trim();
+                var senha = document.getElementById("txtSenha").value.toString().trim();
+                var erro = document.getElementById("msgErro");
                 
-                // Habilita campos
-                document.getElementById("txtSenha").disabled = false;
-                document.getElementById("btnEntrar").disabled = false;
-            } else {
-                document.getElementById("labelEscola").innerText = "Filtre uma escola no relatório.";
-                document.getElementById("txtSenha").disabled = true;
-                document.getElementById("btnEntrar").disabled = true;
-            }
-        }
-    });
+                erro.style.display = 'none';
 
-    // Ação do Botão
-    document.getElementById("btnEntrar").addEventListener("click", async () => {
-        const login = document.getElementById("hiddenLogin").value;
-        const senha = document.getElementById("txtSenha").value;
-        const btn = document.getElementById("btnEntrar");
-        const spinner = document.getElementById("loadingSpinner");
-        const msg = document.getElementById("msgErro");
-
-        if (!senha) return;
-
-        // UI Loading
-        btn.disabled = true;
-        spinner.style.display = "inline-block";
-        msg.style.display = "none";
-
-        try {
-            // Prepara dados para enviar ao Job (igual ao exemplo car_rating)
-            const payload = {
-                login: login,
-                senha: senha
-            };
-
-            // CHAMA O JOB (Magia acontece aqui)
-            const resposta = await executeJob(SAS_BASE_URL, payload, JOB_PATH);
-
-            if (resposta.status === "success") {
-                // SUCESSO!
-                msg.style.color = "green";
-                msg.innerText = "Sucesso! Carregando...";
-                msg.style.display = "block";
-
-                // Envia seleção para o VA (Filtra a tabela principal)
-                // Precisamos achar o índice da linha desse login nos dados do VA
-                const index = dadosVA.findIndex(r => r[0] == login);
-                
-                if (index >= 0) {
-                    const message = {
-                        resultName: vaResultName,
-                        selections: [{ row: index }]
-                    };
-                    // Envia comando para o VA
-                    const url = (window.location != window.parent.location) ? document.referrer : document.location.href;
-                    window.parent.postMessage(message, url);
+                if (!login || !senha) {
+                    erro.innerHTML = "Preencha login e senha.";
+                    erro.style.display = 'block';
+                    return;
                 }
 
-            } else {
-                throw new Error("Senha incorreta.");
+                dadosAtuais = dadosGlobais.filter(function(row) {
+                    var rowLogin = String(row[0] || '').trim();
+                    var rowSenha = String(row[1] || '').trim();
+                    return rowLogin === login && rowSenha === senha;
+                });
+
+                if (dadosAtuais.length > 0) {
+                    document.getElementById("infoUsuario").innerText = "Entidade: " + login;
+                    mostrarTabela(dadosAtuais);
+                } else {
+                    var msg = "Credenciais inválidas.";
+                    if (dadosGlobais.length >= LIMITE_LINHAS_AVISO) {
+                        msg += "<br><strong>Nota:</strong> Muitos dados carregados. Tente filtrar mais.";
+                    }
+                    erro.innerHTML = msg;
+                    erro.style.display = 'block';
+                }
+            } catch (e) {
+                console.error(e);
             }
-
-        } catch (erro) {
-            console.error(erro);
-            msg.style.color = "#dc3545";
-            msg.innerText = erro.message || "Erro ao validar.";
-            msg.style.display = "block";
-        } finally {
-            btn.disabled = false;
-            spinner.style.display = "none";
         }
-    });
 
-</script>
+        function mostrarTabela(dados) {
+            document.getElementById("login-screen").style.display = "none";
+            document.getElementById("data-screen").style.display = "flex";
+
+            var cols = colunasGlobais.map(function(c, i) {
+                return { title: c.label, visible: i !== 1 };
+            });
+
+            if (tabelaInstancia) { tabelaInstancia.destroy(); $('#tabelaPrincipal').empty(); }
+
+            tabelaInstancia = $('#tabelaPrincipal').DataTable({
+                data: dados,
+                columns: cols,
+                language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json" },
+                dom: 'frtip', 
+                pageLength: 15,
+                scrollX: true
+            });
+        }
+
+        // --- SOLUÇÃO MANUAL (MODAL) ---
+        function abrirModalManual(tipo) {
+            if (!dadosAtuais || dadosAtuais.length === 0) return;
+
+            var texto = "";
+            var titulos = [];
+            
+            // Cabeçalho
+            colunasGlobais.forEach(function(col, index) {
+                if (index !== 1) titulos.push(col.label);
+            });
+            texto += titulos.join("\t") + "\n";
+
+            // Dados
+            dadosAtuais.forEach(function(row) {
+                var linha = [];
+                row.forEach(function(cell, index) {
+                    if (index !== 1) { 
+                        var valor = (cell === null || cell === undefined) ? "" : String(cell);
+                        valor = valor.replace(/(\r\n|\n|\r)/gm, " "); 
+                        linha.push(valor);
+                    }
+                });
+                texto += linha.join("\t") + "\n";
+            });
+
+            // Preenche e abre o modal
+            var area = document.getElementById("areaTransferencia");
+            area.value = texto;
+            
+            var modal = document.getElementById("modalManual");
+            var title = document.getElementById("modalTitle");
+            
+            if (tipo === 'email') {
+                title.innerText = "Preparar para E-mail";
+            } else {
+                title.innerText = "Copiar para Excel";
+            }
+            
+            modal.style.display = "flex";
+            
+            // Seleciona o texto automaticamente
+            area.select();
+            area.setSelectionRange(0, 99999); // Para mobile
+        }
+
+        function fecharModal() {
+            document.getElementById("modalManual").style.display = "none";
+        }
+
+        function toggleFullScreen() {
+            var elem = document.documentElement;
+            if (!document.fullscreenElement) {
+                elem.requestFullscreen().catch(err => { alert("Bloqueado pelo navegador"); });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function logout() {
+            document.getElementById("data-screen").style.display = "none";
+            document.getElementById("login-screen").style.display = "flex";
+            document.getElementById("txtLogin").value = "";
+            document.getElementById("txtSenha").value = "";
+            dadosAtuais = [];
+            if (document.fullscreenElement) document.exitFullscreen();
+        }
+    </script>
 </body>
 </html>
