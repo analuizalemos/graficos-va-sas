@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login DDC via Job</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css">
+    <style>
+        body { background-color: transparent; font-family: "Segoe UI", sans-serif; height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; }
+        .login-container { width: 300px; text-align: center; }
+        .form-control { margin-bottom: 10px; }
+        .btn-primary { background-color: #0F62AC; border: none; width: 100%; font-weight: bold; }
+        .btn-primary:hover { background-color: #0a4d8c; }
+        #msgErro { color: #dc3545; font-size: 14px; margin-top: 10px; display: none; }
+        .spinner-border { display: none; width: 1rem; height: 1rem; margin-right: 5px;}
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <h5 style="color:#0F62AC; margin-bottom: 15px;">Acesso Restrito</h5>
+    
+    <input type="hidden" id="hiddenLogin">
+    
+    <div id="labelEscola" class="text-muted small mb-2">Selecione uma escola...</div>
+
+    <input type="password" id="txtSenha" class="form-control" placeholder="Senha" disabled>
+    
+    <button id="btnEntrar" class="btn btn-primary" disabled>
+        <span class="spinner-border" id="loadingSpinner"></span> ENTRAR
+    </button>
+    
+    <div id="msgErro"></div>
+</div>
+
+<script>
+    // --- 1. REPLICAÇÃO DO jobExecutionUtil.js (Do seu exemplo) ---
+    const getCSRFToken = async (url) => {
+        const response = await fetch(url + "/SASJobExecution/csrf", { method: "GET", credentials: "include" });
+        return response.headers.get("x-csrf-token");
+    }
+
+    const checkStatus = async (token, url, jobId) => {
+        const headers = { 'Accept': 'text/plain', 'X-CSRF-Token': token, 'X-CSRF-Header': 'X-CSRF-Token' };
+        const state = await fetch(`${url}/jobExecution/jobs/${jobId}/state`, { headers: headers, credentials: "include" });
+        return state.text();
+    }
+
+    const retrieveJobOutput = async (token, url, jobId) => {
+        const headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': token, 'X-CSRF-Header': 'X-CSRF-Token' };
+        const request = await fetch(`${url}/SASJobExecution/?_jobexec=/jobExecution/jobs/${jobId}&_action=json`, { headers: headers, credentials: "include" });
+        const results = await request.json();
+        // Procura o arquivo _webout.json na resposta
+        const body = results.items.find(item => item.name === "_webout.json");
+        if (!body) throw new Error("Saída do Job não encontrada.");
+        
+        const responseData = await fetch(`${url}${body.href}`, { headers: headers, credentials: "include" });
+        return responseData.json();
+    }
+
+    const executeJob = async (url, data, programPath) => {
+        const csrfToken = await getCSRFToken(url);
+        const jobHeaders = {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+            'X-CSRF-Header': 'X-CSRF-Token'
+        };
+        
+        // Parâmetros obrigatórios para rodar em background e aceitar JSON
+        const params = new URLSearchParams({
+            "_program": programPath,
+            "_action": "background",
+            "_output_type": "json"
+        });
+
+        // Dispara o Job
+        const jobRequest = await fetch(`${url}/SASJobExecution/?${params}`, {
+            method: "POST",
+            headers: jobHeaders,
+            credentials: "include",
+            body: JSON.stringify(data)
+        });
+
+        const jobId = jobRequest.headers.get("x-sas-jobexec-id");
+        if (!jobId) throw new Error("Falha ao iniciar o Job SAS.");
+
+        // Polling (espera o job terminar)
+        let jobStatus = "running";
+        while (jobStatus === "running" || jobStatus === "pending") {
+            await new Promise(r => setTimeout(r, 500)); // Espera 500ms
+            jobStatus = await checkStatus(csrfToken, url, jobId);
+        }
+
+        if (jobStatus === "completed") {
+            return await retrieveJobOutput(csrfToken, url, jobId);
+        } else {
+            throw new Error("Job falhou com status: " + jobStatus);
+        }
+    }
+
+    // --- 2. LÓGICA DO DDC (VA Integration) ---
+    
+    // Configurações
+    const SAS_BASE_URL = "https://analitico.apps.ocpbm-1.inep.gov.br"; // SEU AMBIENTE
+    const JOB_PATH = "/Public/Validar_Credenciais"; // CAMINHO DO JOB QUE CRIAMOS
+
+    let dadosVA = [];
+    let vaResultName = "";
+
+    // Escuta mensagens do VA
+    window.addEventListener("message", (event) => {
+        if (event.data && event.data.hasOwnProperty("data")) {
+            dadosVA = event.data.data;
+            vaResultName = event.data.resultName;
+            
+            // Assume que Coluna 0 é o CO_ENTIDADE (Login) vindo do filtro
+            if (dadosVA.length > 0) {
+                const loginAtual = dadosVA[0][0]; // Pega o primeiro valor visível
+                document.getElementById("hiddenLogin").value = loginAtual;
+                document.getElementById("labelEscola").innerText = "Entidade: " + loginAtual;
+                
+                // Habilita campos
+                document.getElementById("txtSenha").disabled = false;
+                document.getElementById("btnEntrar").disabled = false;
+            } else {
+                document.getElementById("labelEscola").innerText = "Filtre uma escola no relatório.";
+                document.getElementById("txtSenha").disabled = true;
+                document.getElementById("btnEntrar").disabled = true;
+            }
+        }
+    });
+
+    // Ação do Botão
+    document.getElementById("btnEntrar").addEventListener("click", async () => {
+        const login = document.getElementById("hiddenLogin").value;
+        const senha = document.getElementById("txtSenha").value;
+        const btn = document.getElementById("btnEntrar");
+        const spinner = document.getElementById("loadingSpinner");
+        const msg = document.getElementById("msgErro");
+
+        if (!senha) return;
+
+        // UI Loading
+        btn.disabled = true;
+        spinner.style.display = "inline-block";
+        msg.style.display = "none";
+
+        try {
+            // Prepara dados para enviar ao Job (igual ao exemplo car_rating)
+            const payload = {
+                login: login,
+                senha: senha
+            };
+
+            // CHAMA O JOB (Magia acontece aqui)
+            const resposta = await executeJob(SAS_BASE_URL, payload, JOB_PATH);
+
+            if (resposta.status === "success") {
+                // SUCESSO!
+                msg.style.color = "green";
+                msg.innerText = "Sucesso! Carregando...";
+                msg.style.display = "block";
+
+                // Envia seleção para o VA (Filtra a tabela principal)
+                // Precisamos achar o índice da linha desse login nos dados do VA
+                const index = dadosVA.findIndex(r => r[0] == login);
+                
+                if (index >= 0) {
+                    const message = {
+                        resultName: vaResultName,
+                        selections: [{ row: index }]
+                    };
+                    // Envia comando para o VA
+                    const url = (window.location != window.parent.location) ? document.referrer : document.location.href;
+                    window.parent.postMessage(message, url);
+                }
+
+            } else {
+                throw new Error("Senha incorreta.");
+            }
+
+        } catch (erro) {
+            console.error(erro);
+            msg.style.color = "#dc3545";
+            msg.innerText = erro.message || "Erro ao validar.";
+            msg.style.display = "block";
+        } finally {
+            btn.disabled = false;
+            spinner.style.display = "none";
+        }
+    });
+
+</script>
+</body>
+</html>
