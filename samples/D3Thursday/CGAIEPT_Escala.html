@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Escala de Conceito — SAS VA DDC</title>
+<style>
+  :root{
+    --ink: #1f2937;
+    --ink-soft: #6b7280;
+    --bg: #ffffff;
+    --border: #e5e7eb;
+    --pointer: #1f2937;
+    --focus: #2563eb;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    font-family: "Segoe UI", "SAS Text", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #app{
+    width: 100%;
+    height: 100%;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  .component{
+    width: 100%;
+    max-width: 960px;
+    display: flex;
+    align-items: center;
+    gap: clamp(12px, 3vw, 28px);
+  }
+
+  /* ---------- LETRA (elemento principal / hero value) ---------- */
+  .concept-container{
+    flex: 0 0 clamp(64px, 14%, 120px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1;
+  }
+
+  .concept-eyebrow{
+    font-size: clamp(10px, 1vw, 12px);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+    white-space: nowrap;
+  }
+
+  .concept-value{
+    font-size: clamp(48px, 6vw, 80px);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+  }
+
+  /* ---------- ESCALA ---------- */
+  .scale-container{
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .scale-header{
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+
+  .scale-title{
+    font-size: clamp(11px, 1vw, 13px);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  svg{
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+
+  .segment{
+    stroke: var(--bg);
+    stroke-width: 2;
+  }
+
+  .segment-label{
+    font-size: 13px;
+    font-weight: 600;
+    fill: var(--ink-soft);
+    text-anchor: middle;
+    dominant-baseline: hanging;
+  }
+
+  .pointer-shape{
+    fill: var(--pointer);
+    stroke: var(--bg);
+    stroke-width: 1.5;
+  }
+
+  .pointer-stem{
+    stroke: var(--pointer);
+    stroke-width: 2;
+  }
+
+  /* ---------- estados auxiliares ---------- */
+  .error-state{
+    font-size: 14px;
+    color: #b91c1c;
+    text-align: center;
+    padding: 24px;
+  }
+
+  /* ---------- responsivo: empilha somente quando o espaço é insuficiente ---------- */
+  @media (max-width: 380px){
+    .component{
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+    .concept-container{
+      flex: 0 0 auto;
+      flex-direction: row;
+      justify-content: center;
+      gap: 10px;
+    }
+    .concept-value{
+      font-size: clamp(36px, 14vw, 56px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="component" id="component" role="img" aria-label="Indicador de conceito">
+    <div class="concept-container">
+      <div class="concept-eyebrow">Conceito</div>
+      <div class="concept-value" id="conceptValue">–</div>
+    </div>
+    <div class="scale-container">
+      <div id="scaleSvgHost"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* =========================================================================
+     VARIÁVEIS DE CONFIGURAÇÃO — fáceis de alterar / mapear para dados dinâmicos
+     ========================================================================= */
+
+  // Paleta-base, em ordem crescente (pior → melhor)
+  const COLOR_PALETTE = [
+    "#8B0000",
+    "#FF8224",
+    "#FFD700",
+    "#87CEEB",
+    "#00008B"
+  ];
+
+  // Dado de exemplo usado quando o componente roda fora do SAS VA (mock)
+  // "value" é opcional — se omitido, é derivado automaticamente da letra
+  const MOCK_DATA = {
+    conceito: "B",
+    escala_max: 5
+  };
+
+  /* =========================================================================
+     UTILITÁRIOS
+     ========================================================================= */
+
+  // Seleciona as cores corretas para a quantidade de conceitos, preservando
+  // a progressão perceptual pior → melhor.
+  function getColorsForScale(escalaMax) {
+    switch (escalaMax) {
+      case 3:
+        return [COLOR_PALETTE[0], COLOR_PALETTE[2], COLOR_PALETTE[4]];
+      case 4:
+        return [COLOR_PALETTE[0], COLOR_PALETTE[1], COLOR_PALETTE[2], COLOR_PALETTE[4]];
+      case 5:
+        return COLOR_PALETTE.slice(0, 5);
+      default: {
+        // fallback genérico: amostragem proporcional da paleta
+        const colors = [];
+        for (let i = 0; i < escalaMax; i++) {
+          const idx = Math.round((i / Math.max(escalaMax - 1, 1)) * (COLOR_PALETTE.length - 1));
+          colors.push(COLOR_PALETTE[idx]);
+        }
+        return colors;
+      }
+    }
+  }
+
+  function letterForIndex(i) {
+    return String.fromCharCode(65 + i);
+  }
+
+  // Valida e normaliza o payload recebido (do SAS ou do mock)
+  //
+  // IMPORTANTE: "value" (posição do ponteiro) é derivado automaticamente a
+  // partir da letra do conceito (A=1, B=2, C=3...), pois é essa a única
+  // fonte confiável — colunas numéricas de quantificação na base de origem
+  // nem sempre têm correspondência 1:1 com a posição alfabética da letra.
+  // Se um "value" explícito for enviado e for válido, ele tem prioridade
+  // (útil para escalas não-alfabéticas no futuro).
+  function normalizeData(raw) {
+    if (!raw || typeof raw !== "object") return null;
+
+    let escalaMax = parseInt(raw.escala_max, 10);
+    let conceito = typeof raw.conceito === "string" ? raw.conceito.trim().toUpperCase() : "";
+
+    if (!Number.isFinite(escalaMax) || escalaMax < 1) return null;
+    if (!conceito || conceito.length !== 1 || !/^[A-Z]$/.test(conceito)) return null;
+
+    // posição alfabética do conceito (A=1, B=2, C=3, ...)
+    const derivedValue = conceito.charCodeAt(0) - 65 + 1;
+
+    let value = parseInt(raw.value, 10);
+    if (!Number.isFinite(value)) {
+      value = derivedValue;
+    }
+
+    // clamp de segurança
+    value = Math.min(Math.max(value, 1), escalaMax);
+
+    return { value, conceito, escala_max: escalaMax };
+  }
+
+  /* =========================================================================
+     RENDERIZAÇÃO
+     ========================================================================= */
+
+  const svgHost = document.getElementById("scaleSvgHost");
+  const conceptValueEl = document.getElementById("conceptValue");
+  const componentEl = document.getElementById("component");
+
+  let currentData = null;
+  let resizeRaf = null;
+
+  function renderError(message) {
+    svgHost.innerHTML = "";
+    conceptValueEl.textContent = "–";
+    const err = document.createElement("div");
+    err.className = "error-state";
+    err.textContent = message;
+    svgHost.appendChild(err);
+  }
+
+  function render(data) {
+    if (!data) {
+      renderError("Dados inválidos ou incompletos para a escala de conceito.");
+      return;
+    }
+
+    currentData = data;
+    const { value, conceito, escala_max } = data;
+
+    // Letra em destaque
+    conceptValueEl.textContent = conceito;
+
+    // Dimensões dinâmicas baseadas na largura real do container
+    const containerWidth = svgHost.clientWidth || componentEl.clientWidth * 0.7 || 600;
+    const width = Math.max(containerWidth, 220);
+    const height = 92;
+    const barTop = 34;
+    const barHeight = 34;
+    const pointerHeight = 14;
+
+    svgHost.innerHTML = "";
+
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    function createSvgEl(tag, attrs) {
+      const el = document.createElementNS(SVG_NS, tag);
+      for (const key in attrs) {
+        el.setAttribute(key, attrs[key]);
+      }
+      return el;
+    }
+
+    const svg = createSvgEl("svg", {
+      viewBox: `0 0 ${width} ${height}`,
+      preserveAspectRatio: "xMinYMin meet",
+      role: "presentation",
+      "aria-hidden": "true",
+      width: "100%",
+      height: height
+    });
+
+    const colors = getColorsForScale(escala_max);
+    const segWidth = width / escala_max;
+
+    // Faixas coloridas + labels
+    const segGroup = createSvgEl("g", { class: "segments" });
+
+    for (let i = 0; i < escala_max; i++) {
+      const rect = createSvgEl("rect", {
+        class: "segment",
+        x: i * segWidth,
+        y: barTop,
+        width: segWidth,
+        height: barHeight,
+        rx: 4,
+        fill: colors[i]
+      });
+      segGroup.appendChild(rect);
+
+      const label = createSvgEl("text", {
+        class: "segment-label",
+        x: i * segWidth + segWidth / 2,
+        y: barTop + barHeight + 8
+      });
+      label.textContent = letterForIndex(i);
+      segGroup.appendChild(label);
+    }
+
+    svg.appendChild(segGroup);
+
+    // Ponteiro — centralizado no segmento correspondente ao value
+    const segIndex = Math.min(Math.max(value - 1, 0), escala_max - 1);
+    const pointerX = segIndex * segWidth + segWidth / 2;
+    const pointerTipY = barTop - 2;
+    const pointerBaseY = pointerTipY - pointerHeight;
+
+    const pointerGroup = createSvgEl("g", { class: "pointer" });
+    const pointerPath = createSvgEl("path", {
+      class: "pointer-shape",
+      d: `M ${pointerX - 7} ${pointerBaseY} L ${pointerX + 7} ${pointerBaseY} L ${pointerX} ${pointerTipY} Z`
+    });
+    pointerGroup.appendChild(pointerPath);
+    svg.appendChild(pointerGroup);
+
+    svgHost.appendChild(svg);
+  }
+
+  /* =========================================================================
+     RESIZE
+     ========================================================================= */
+
+  function scheduleRerender() {
+    if (resizeRaf) cancelAnimationFrame(resizeRaf);
+    resizeRaf = requestAnimationFrame(() => {
+      if (currentData) render(currentData);
+    });
+  }
+
+  window.addEventListener("resize", scheduleRerender);
+
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(scheduleRerender);
+    ro.observe(componentEl);
+  }
+
+  /* =========================================================================
+     INTEGRAÇÃO COM SAS VISUAL ANALYTICS (DDC)
+     ========================================================================= */
+
+  function handleSasMessage(messageFromSas) {
+    try {
+      const resultName = messageFromSas.resultName;
+
+      if (resultName === "dataReceived") {
+        const rows = messageFromSas.data && messageFromSas.data.data;
+
+        if (!rows || rows.length === 0) {
+          renderError("Nenhum dado retornado pelo SAS Visual Analytics.");
+          return;
+        }
+
+        // Espera-se colunas na ordem configurada no objeto DDC do VA:
+        //   1ª coluna → "Nota"            (letra do conceito, ex.: "B")
+        //   2ª coluna → "ESCALA_MAX_ITEM" (quantidade de conceitos da escala)
+        // "value" (posição do ponteiro) é calculado automaticamente a partir
+        // da letra — não é necessário enviar uma coluna numérica para isso.
+        const row = rows[0];
+
+        const raw = {
+          conceito: row[0],
+          escala_max: row[1]
+        };
+
+        const normalized = normalizeData(raw);
+        render(normalized);
+      }
+    } catch (e) {
+      renderError("Erro ao processar dados recebidos do SAS Visual Analytics.");
+    }
+  }
+
+  function initSasIntegration() {
+    if (window.va && window.va.messagingUtil) {
+      window.va.messagingUtil.setOnDataReceivedCallback(handleSasMessage);
+      window.parent.postMessage("ready", "*");
+      return true;
+    }
+    return false;
+  }
+
+  /* =========================================================================
+     INICIALIZAÇÃO
+     ========================================================================= */
+
+  const runningInsideSas = initSasIntegration();
+
+  if (!runningInsideSas) {
+    // Fora do SAS VA (ex.: aberto direto no navegador) → usa dados de mock
+    const normalized = normalizeData(MOCK_DATA);
+    render(normalized);
+  }
+
+  // Exposto para facilitar testes manuais no console do navegador, ex.:
+  // __renderConceito({ conceito: "D", escala_max: 4 });
+  window.__renderConceito = function (raw) {
+    render(normalizeData(raw));
+  };
+
+})();
+</script>
+
+</body>
+</html>
