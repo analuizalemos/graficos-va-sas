@@ -4,11 +4,38 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Escala de Conceito — SAS VA DDC</title>
+
+<!-- ========================================================================
+     IMPORTAÇÃO DOS UTILITÁRIOS DO SAS VISUAL ANALYTICS (DDC)
+     ------------------------------------------------------------------------
+     Isso é o que faltava no arquivo original. O objeto global "window.va"
+     (usado mais abaixo para escutar dados do VA) só é criado depois que
+     estes dois scripts são carregados. Sem isso, "window.va" nunca existe,
+     a checagem "if (window.va && window.va.messagingUtil)" sempre falha,
+     e o componente cai direto no branch de mock — por isso não recebia
+     nenhum dado real do SAS.
+     O "document.write" só roda quando a página está dentro de um iframe
+     (window.self !== window.top), ou seja, quando está realmente rodando
+     dentro do SAS VA. Fora do SAS (aberto direto no navegador), ele é
+     ignorado e o mock continua funcionando normalmente para testes.
+     ========================================================================= -->
+<script type="text/javascript">
+  if (typeof window !== 'undefined' && window.self !== window.top) {
+    try {
+      document.write('<script type="text/javascript" src="../../util/messagingUtil.js"><\/script>');
+      document.write('<script type="text/javascript" src="../../util/contentUtil.js"><\/script>');
+    } catch (e) {
+      console.log("Utilitários do SAS VA não disponíveis");
+    }
+  }
+</script>
+
 <style>
   :root{
     --ink: #1f2937;
     --ink-soft: #6b7280;
-    --bg: #ffffff;
+    --bg: transparent;
+    --stroke: #ffffff;
     --border: #e5e7eb;
     --pointer: #1f2937;
     --focus: #2563eb;
@@ -21,53 +48,57 @@
     padding: 0;
     width: 100%;
     height: 100%;
-    background: var(--bg);
+    background: transparent;
     font-family: "Segoe UI", "SAS Text", Roboto, Helvetica, Arial, sans-serif;
     color: var(--ink);
     -webkit-font-smoothing: antialiased;
+    overflow: hidden;
   }
 
   #app{
+    container-type: inline-size;
     width: 100%;
     height: 100%;
-    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 16px;
+    padding: 0;
+    background: transparent;
   }
 
   .component{
     width: 100%;
-    max-width: 960px;
+    height: 100%;
+    max-width: 100%;
     display: flex;
     align-items: center;
-    gap: clamp(12px, 3vw, 28px);
+    gap: clamp(6px, 2.5cqw, 28px);
   }
 
   /* ---------- LETRA (elemento principal / hero value) ---------- */
   .concept-container{
-    flex: 0 0 clamp(64px, 14%, 120px);
+    flex: 0 0 clamp(28px, 14%, 120px);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
     line-height: 1;
+    min-width: 0;
   }
 
   .concept-eyebrow{
-    font-size: clamp(10px, 1vw, 12px);
+    font-size: clamp(6px, 1.4cqw, 12px);
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--ink-soft);
-    margin-bottom: 6px;
+    margin-bottom: clamp(2px, 0.8cqw, 6px);
     white-space: nowrap;
   }
 
   .concept-value{
-    font-size: clamp(48px, 6vw, 80px);
+    font-size: clamp(18px, 9cqw, 80px);
     font-weight: 700;
     line-height: 1;
     color: var(--ink);
@@ -78,6 +109,9 @@
   .scale-container{
     flex: 1 1 auto;
     min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
   }
 
   .scale-header{
@@ -95,6 +129,11 @@
     color: var(--ink-soft);
   }
 
+  #scaleSvgHost{
+    width: 100%;
+    min-width: 0;
+  }
+
   svg{
     width: 100%;
     height: auto;
@@ -103,7 +142,7 @@
   }
 
   .segment{
-    stroke: var(--bg);
+    stroke: var(--stroke);
     stroke-width: 2;
   }
 
@@ -117,7 +156,7 @@
 
   .pointer-shape{
     fill: var(--pointer);
-    stroke: var(--bg);
+    stroke: var(--stroke);
     stroke-width: 1.5;
   }
 
@@ -134,21 +173,42 @@
     padding: 24px;
   }
 
-  /* ---------- responsivo: empilha somente quando o espaço é insuficiente ---------- */
-  @media (max-width: 380px){
+  /* ---------- responsivo: empilha somente quando o espaço é insuficiente ----------
+     Usa container query (baseada no tamanho real do objeto no relatório),
+     não no viewport — assim funciona ao encolher dentro do SAS VA mesmo
+     que o iframe do DDC não mude de "viewport". */
+  @container (max-width: 380px){
     .component{
       flex-direction: column;
       align-items: stretch;
-      gap: 12px;
+      justify-content: center;
+      gap: 4px;
     }
     .concept-container{
       flex: 0 0 auto;
       flex-direction: row;
       justify-content: center;
-      gap: 10px;
+      gap: 8px;
     }
     .concept-value{
-      font-size: clamp(36px, 14vw, 56px);
+      font-size: clamp(16px, 14cqw, 40px);
+    }
+  }
+
+  /* Fallback para navegadores/webviews sem suporte a container queries:
+     mantém o comportamento anterior baseado em viewport. */
+  @media (max-width: 380px){
+    .component{
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      gap: 4px;
+    }
+    .concept-container{
+      flex: 0 0 auto;
+      flex-direction: row;
+      justify-content: center;
+      gap: 8px;
     }
   }
 
@@ -288,9 +348,11 @@
     // Letra em destaque
     conceptValueEl.textContent = conceito;
 
-    // Dimensões dinâmicas baseadas na largura real do container
+    // Dimensões dinâmicas baseadas na largura real do container.
+    // Piso reduzido (80px) para permitir encolher bastante dentro de um
+    // relatório, onde o objeto pode ficar bem pequeno.
     const containerWidth = svgHost.clientWidth || componentEl.clientWidth * 0.7 || 600;
-    const width = Math.max(containerWidth, 220);
+    const width = Math.max(containerWidth, 80);
     const height = 92;
     const barTop = 34;
     const barHeight = 34;
@@ -417,18 +479,27 @@
     }
   }
 
+  function isInSASVA() {
+    try {
+      return window.self !== window.top &&
+             typeof va !== 'undefined' &&
+             va.messagingUtil;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function initSasIntegration() {
-    if (window.va && window.va.messagingUtil) {
-      window.va.messagingUtil.setOnDataReceivedCallback(handleSasMessage);
+    if (isInSASVA()) {
+      va.messagingUtil.setOnDataReceivedCallback(handleSasMessage);
+      // "ready" avisa o SAS VA que o DDC terminou de carregar e já pode
+      // receber dados. Mantido também via postMessage direto por segurança,
+      // caso a versão do va.messagingUtil não exponha um helper equivalente.
       window.parent.postMessage("ready", "*");
       return true;
     }
     return false;
   }
-
-  /* =========================================================================
-     INICIALIZAÇÃO
-     ========================================================================= */
 
   const runningInsideSas = initSasIntegration();
 
