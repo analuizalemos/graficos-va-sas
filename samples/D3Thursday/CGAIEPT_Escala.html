@@ -348,11 +348,16 @@
     // Letra em destaque
     conceptValueEl.textContent = conceito;
 
-    // Dimensões dinâmicas baseadas na largura real do container.
-    // Piso reduzido (80px) para permitir encolher bastante dentro de um
-    // relatório, onde o objeto pode ficar bem pequeno.
-    const containerWidth = svgHost.clientWidth || componentEl.clientWidth * 0.7 || 600;
-    const width = Math.max(containerWidth, 80);
+    // Viewport interno FIXO (não medido em tempo real): o SVG sempre
+    // desenha num "grid" abstrato de 640x92 unidades, e quem faz a escala
+    // para pixels reais é só o CSS (svg{ width:100%; height:auto }),
+    // preservando a proporção automaticamente.
+    // Antes isso usava svgHost.clientWidth para montar o viewBox — mas
+    // dentro do SAS VA o "dataReceived" pode disparar antes do layout do
+    // objeto estar pronto, e clientWidth chega como 0 nesse instante.
+    // Isso fazia o viewBox nascer com proporção errada e a barra sumir ou
+    // ficar gigante/fora da área visível, sem gerar nenhum erro no console.
+    const width = 640;
     const height = 92;
     const barTop = 34;
     const barHeight = 34;
